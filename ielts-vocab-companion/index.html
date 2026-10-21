@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IELTS Reading Vocab Companion · 雅思阅读精读背词伴侣</title>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-icon">V</div>
+      <div>
+        <div class="brand-title">IELTS Vocab Companion</div>
+        <div class="brand-subtitle">阅读真题深度绑定 · 语境全真检阅</div>
+      </div>
+    </div>
+    <nav class="flow-nav">
+      <button id="nav-btn-extract" class="nav-item active">1. 篇章圈词</button>
+      <button id="nav-btn-memorize" class="nav-item">2. 英中联想记忆</button>
+      <button id="nav-btn-verify" class="nav-item">3. 原文全真检阅</button>
+    </nav>
+    <div class="header-status">
+      <div class="status-badge">
+        <span class="status-dot pulse"></span>
+        <span>已绑定 IELTS-practice</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-viewport">
+    <section class="article-banner">
+      <div class="article-info">
+        <h2 id="article-title">正在获取最近做题记录...</h2>
+        <div class="article-meta">
+          <span id="article-category" class="article-pill">P1</span>
+          <span id="article-exam-id">p1-high-01</span>
+          <span id="article-score"></span>
+        </div>
+      </div>
+      <div class="article-actions">
+        <label for="recent-exams-select" style="font-size: 0.85rem; color: var(--text-secondary);">切换篇章：</label>
+        <select id="recent-exams-select" class="recent-list-dropdown"></select>
+      </div>
+    </section>
+
+    <section id="view-extract" class="view-pane active">
+      <div class="reading-layout">
+        <div class="reading-passage-box">
+          <div id="passage-content-container"></div>
+        </div>
+        <aside class="words-pool-panel">
+          <div class="panel-header">
+            <h3>本篇生词本</h3>
+            <span id="pool-count-badge" class="status-badge">0 词</span>
+          </div>
+          <div id="words-pool-list" class="pool-list"></div>
+          <div style="margin-top: 1rem;">
+            <button id="start-task-btn" class="btn btn-primary" style="width: 100%; justify-content: center;">
+              进入第二阶段：背诵生词 →
+            </button>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="view-memorize" class="view-pane">
+      <div class="flashcard-stage">
+        <div style="width: 100%; max-width: 640px; display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+          <span style="font-size: 0.85rem; color: var(--text-secondary);">生词大任务进度</span>
+          <span id="task-progress-text" style="font-size: 0.85rem; font-weight: 700; color: var(--accent-cyan);">0 / 0</span>
+        </div>
+        <div class="task-progress-bar">
+          <div id="task-progress-fill" class="task-progress-fill"></div>
+        </div>
+        <div id="memorize-card" class="flashcard">
+          <div id="card-word" class="flashcard-word">Word</div>
+          <div id="card-phonetic" class="flashcard-phonetic">/phonetic/</div>
+          <div id="card-context" class="flashcard-context"></div>
+          <div class="flashcard-meaning-box">
+            <div id="card-meaning" class="flashcard-meaning">释义内容</div>
+          </div>
+        </div>
+        <div class="card-controls">
+          <button id="btn-toggle-reveal" class="btn btn-secondary btn-large">查看中文释义 (Space)</button>
+          <button id="btn-mark-unknown" class="btn btn-danger btn-large">模糊 / 忘记</button>
+          <button id="btn-mark-known" class="btn btn-success btn-large">认识 / 记住了</button>
+          <button id="btn-start-verify" class="btn btn-primary btn-large" style="display: none;">开启第三阶段：重回篇章全真检阅 →</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-verify" class="view-pane">
+      <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 0.85rem 1.25rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <strong style="color: var(--accent-cyan);">第三阶段：全真篇章检阅</strong>
+          <span style="margin-left: 0.75rem; font-size: 0.85rem; color: var(--text-secondary);">下方是刚做过的完整文章，你圈出的生词已被遮盖。请通读并在脑中回忆其中文含义，点击遮盖块即可揭晓并验收。</span>
+        </div>
+        <button id="btn-finish-task" class="btn btn-success">全部检阅完毕 · 完成大任务 🏆</button>
+      </div>
+      <div class="reading-passage-box" style="max-height: calc(100vh - 270px);">
+        <div id="verify-passage-container"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="dict-popup" class="quick-dict-popup">
+    <div id="popup-word" class="popup-word">word</div>
+    <div id="popup-phonetic" style="font-size: 0.8rem; color: var(--accent-cyan);">/phonetic/</div>
+    <div id="popup-meaning" class="popup-meaning">正在查询...</div>
+    <button id="popup-add-btn" class="btn btn-primary" style="width: 100%; justify-content: center;">加入生词本</button>
+  </div>
+
+  <div id="modal-overlay" class="modal-overlay">
+    <div class="modal-content">
+      <h3 id="modal-title">通关！</h3>
+      <p id="modal-desc"></p>
+      <button id="modal-confirm-btn" class="btn btn-primary btn-large">太棒了，继续练习</button>
+    </div>
+  </div>
+
+  <script src="bridge.js"></script>
+  <script src="store.js"></script>
+  <script src="dictionary.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
