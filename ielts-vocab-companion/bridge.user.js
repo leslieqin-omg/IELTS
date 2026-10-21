@@ -18,8 +18,8 @@
 
 (function () {
   'use strict';
-  const ORIGIN = '__BRIDGE_ORIGIN__';
-  const TOKEN = '__BRIDGE_TOKEN__';
+  const ORIGIN = '__BRIDGE_ORIGIN__' === '__' + 'BRIDGE_ORIGIN__' ? 'http://127.0.0.1:47832' : '__BRIDGE_ORIGIN__';
+  const TOKEN = '__BRIDGE_TOKEN__' === '__' + 'BRIDGE_TOKEN__' ? '' : '__BRIDGE_TOKEN__';
   if (location.origin === ORIGIN && !location.pathname.startsWith('/practice/')) return;
   const CHANNEL = 'ielts_practice_sync';
   const KEY = 'ielts_practice_sync_event';
@@ -39,15 +39,27 @@
   };
   let channel;
   try { channel = new BroadcastChannel(CHANNEL); } catch { channel = null; }
-  const request = (event) => new Promise((resolve, reject) => {
-    GM_xmlhttpRequest({
-      method: 'POST', url: `${ORIGIN}/api/sync`,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
-      data: JSON.stringify(event), timeout: 5000,
-      onload: (r) => r.status === 200 ? resolve() : reject(new Error(`HTTP ${r.status}`)),
-      ontimeout: () => reject(new Error('timeout')), onerror: () => reject(new Error('offline'))
+  const request = (event) => {
+    const authHeaders = { 'Content-Type': 'application/json' };
+    if (TOKEN) authHeaders.Authorization = `Bearer ${TOKEN}`;
+    return new Promise((resolve, reject) => {
+      if (typeof GM_xmlhttpRequest === 'function') {
+        GM_xmlhttpRequest({
+          method: 'POST', url: `${ORIGIN}/api/sync`,
+          headers: authHeaders,
+          data: JSON.stringify(event), timeout: 5000,
+          onload: (r) => r.status === 200 ? resolve() : reject(new Error(`HTTP ${r.status}`)),
+          ontimeout: () => reject(new Error('timeout')), onerror: () => reject(new Error('offline'))
+        });
+      } else {
+        fetch(`${ORIGIN}/api/sync`, {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify(event)
+        }).then(r => r.ok ? resolve() : reject(new Error(`HTTP ${r.status}`))).catch(reject);
+      }
     });
-  });
+  };
   async function flush() {
     if (flushing || !queue.length) return;
     flushing = true;

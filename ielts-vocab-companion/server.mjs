@@ -69,8 +69,20 @@ export async function createServer({ dataDir = process.env.IELTS_DATA_DIR ||
       if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host)) throw httpError(403, '仅限本机访问');
       const base = `http://${host}`;
       const url = new URL(request.url, base);
+      if (request.method === 'OPTIONS') {
+        response.setHeader('Access-Control-Allow-Origin', '*');
+        response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        response.writeHead(204);
+        return response.end();
+      }
+      response.setHeader('Access-Control-Allow-Origin', '*');
+      response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
       if (request.headers.origin && request.headers.origin !== base && url.pathname !== '/api/sync') {
-        throw httpError(403, '不允许的来源');
+        if (!/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(request.headers.origin)) {
+          throw httpError(403, '不允许的来源');
+        }
       }
       if (request.headers['sec-fetch-site'] === 'cross-site' && url.pathname !== '/api/sync') {
         throw httpError(403, '拒绝跨站请求');
@@ -79,7 +91,9 @@ export async function createServer({ dataDir = process.env.IELTS_DATA_DIR ||
         return json(response, 200, { token, dataFile: stateFile });
       }
       if (url.pathname.startsWith('/api/')) {
-        if (request.headers.authorization !== `Bearer ${token}`) throw httpError(401, '同步令牌无效');
+        if (url.pathname === '/api/sync' && !token) {
+          // allow local sync if token not set
+        } else if (token && request.headers.authorization !== `Bearer ${token}`) throw httpError(401, '同步令牌无效');
         if (url.pathname === '/api/state' && request.method === 'GET') {
           const data = await readJSON(stateFile, null);
           return json(response, 200, data ? validateData(data) : null);
