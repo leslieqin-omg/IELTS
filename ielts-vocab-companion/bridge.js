@@ -1,103 +1,110 @@
-(function (global) {
-  'use strict';
-  const DB_NAME = 'IELTSAtlasDataV2';
-  const DB_VERSION = 2;
-  const SUMMARY_STORE = 'practiceSummaries';
-  const DETAILS_STORE = 'practiceDetails';
+import { normalizeSync } from './model.js';
 
-  const Bridge = {
-    async openDB() {
-      if (!window.indexedDB) return null;
-      return new Promise((resolve) => {
-        const req = window.indexedDB.open(DB_NAME, DB_VERSION);
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => resolve(null);
-      });
-    },
+export const CHANNEL = 'ielts_practice_sync';
+export const SYNC_KEY = 'ielts_practice_sync_event';
 
-    async getRecentReadingPractices() {
+export class Bridge {
+  constructor(onEvent, onStatus) {
+    this.onEvent = onEvent;
+    this.onStatus = onStatus;
+    this.cursor = 0;
+    this.stopped = false;
+  }
+
+  async api(path, options = {}) {
+    const response = await fetch(path, {
+      ...options, headers: { ...options.headers, Authorization: `Bearer ${this.config.token}` },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!response.ok) throw new Error(response.status === 409 ? '文件版本冲突，请刷新后继续' : `本地服务 HTTP ${response.status}`);
+    return response.json();
+  }
+
+  async connect() {
+    try {
+      const response = await fetch('/api/config', { signal: AbortSignal.timeout(1500) });
+      if (!response.ok) throw new Error();
+      this.config = await response.json();
+    } catch { this.onStatus('同源模式；跨端口请使用 npm start'); }
+    return this.config ? {
+      load: () => this.api('/api/state'),
+      save: (state, expectedRevision) => this.api('/api/state', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state, expectedRevision })
+      })
+    } : null;
+  }
+
+  start() {
+    const receive = (raw) => {
       try {
-        const db = await this.openDB();
-        if (!db) return [];
-        return new Promise((resolve) => {
-          if (!db.objectStoreNames.contains(SUMMARY_STORE)) {
-            db.close();
-            return resolve([]);
-          }
-          const tx = db.transaction([SUMMARY_STORE], 'readonly');
-          const store = tx.objectStore(SUMMARY_STORE);
-          const req = store.getAll();
-          req.onsuccess = () => {
-            db.close();
-            const items = req.result || [];
-            const readingOnly = items.filter((row) => {
-              const data = row.data || row;
-              const type = data.type || data.practiceType || (data.metadata && data.metadata.type);
-              const examId = data.examId || (data.metadata && data.metadata.examId);
-              return (type === 'reading' || !type) && Boolean(examId);
-            }).map((row) => {
-              const d = row.data || row;
-              return {
-                id: d.id || row.id,
-                examId: d.examId || (d.metadata && d.metadata.examId),
-                title: d.title || (d.metadata && d.metadata.title) || d.examId,
-                category: d.category || (d.metadata && d.metadata.category) || 'P1',
-                score: d.score !== undefined ? d.score : (d.correctCount !== undefined ? d.correctCount : null),
-                total: d.totalQuestions || d.questionCount || 13,
-                timestamp: d.timestamp || d.createdAt || Date.now()
-              };
-            }).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-            resolve(readingOnly);
-          };
-          req.onerror = () => {
-            db.close();
-            resolve([]);
-          };
-        });
-      } catch (e) {
-        console.warn('[VocabBridge] Failed to read IndexedDB:', e);
-        return [];
+        if (raw?.channel === CHANNEL || raw?.payload || raw?.examId || raw?.passageId) {
+          Promise.resolve(this.onEvent(normalizeSync(raw))).catch((error) => this.onStatus(error.message));
+        }
+      } catch (error) { this.onStatus(error.message); }
+    };
+    try {
+      this.channel = new BroadcastChannel(CHANNEL);
+      this.channel.onmessage = (event) => receive(event.data);
+    } catch { this.onStatus('BroadcastChannel 不可用，仍监听 storage'); }
+    this.storageHandler = (event) => {
+      if (event.key === SYNC_KEY && event.newValue) {
+        try { receive(JSON.parse(event.newValue)); } catch { this.onStatus('忽略无效同步消息'); }
       }
-    },
+    };
+    window.addEventListener('storage', this.storageHandler);
+    try {
+      const saved = localStorage.getItem(SYNC_KEY);
+      if (saved) receive(JSON.parse(saved));
+    } catch { /* Storage events and local HTTP bridge remain independent. */ }
+    const poll = async () => {
+      if (this.stopped) return;
+      if (this.config) {
+        try {
+          const result = await this.api(`/api/events?after=${this.cursor}`);
+          for (const item of result.events) {
+            const processed = await this.onEvent(normalizeSync(item.event));
+            if (!processed) break;
+            await this.api('/api/ack', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids: [item.event.id] })
+            });
+            this.cursor = item.seq;
+          }
+          this.onStatus(result.lastSeen && Date.now() - result.lastSeen < 15000 ?
+            'Chrome 桥接在线' : '本地服务在线，等待 Chrome 阅读页面');
+        } catch (error) { this.onStatus(`同步中断，将自动重连：${error.message}`); }
+      }
+      this.timer = setTimeout(poll, 1500);
+    };
+    poll();
+  }
 
-    async loadExamData(examId) {
-      if (!examId) return null;
-      if (!global.__READING_EXAM_DATA__) {
-        global.__READING_EXAM_DATA__ = {
-          _exams: {},
-          register(id, data) {
-            this._exams[id] = data;
-          },
-          get(id) {
-            return this._exams[id];
-          }
-        };
-      }
-      if (global.__READING_EXAM_DATA__.get(examId)) {
-        return global.__READING_EXAM_DATA__.get(examId);
-      }
-      return new Promise((resolve) => {
+  stop() {
+    this.stopped = true;
+    clearTimeout(this.timer);
+    this.channel?.close();
+    window.removeEventListener('storage', this.storageHandler);
+  }
+
+  async loadExam(id) {
+    if (!/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error('篇章 ID 无效');
+    const registry = globalThis.__READING_EXAM_DATA__ ||= {
+      exams: {}, register(key, data) { this.exams[key] = data; }, get(key) { return this.exams[key]; }
+    };
+    if (registry.get(id)) return registry.get(id);
+    const paths = [this.config ? `/practice/assets/generated/reading-exams/${id}.js` :
+      `../IELTS-practice/assets/generated/reading-exams/${id}.js`, `./assets/demo-exams/${id}.js`];
+    for (const path of paths) {
+      const ok = await new Promise((resolve) => {
         const script = document.createElement('script');
-        script.src = `../IELTS-practice/assets/generated/reading-exams/${examId}.js`;
-        script.onload = () => {
-          resolve(global.__READING_EXAM_DATA__.get(examId) || null);
-        };
-        script.onerror = (err) => {
-          const fallbackScript = document.createElement('script');
-          fallbackScript.src = `./assets/demo-exams/${examId}.js`;
-          fallbackScript.onload = () => {
-            resolve(global.__READING_EXAM_DATA__.get(examId) || null);
-          };
-          fallbackScript.onerror = () => {
-            console.error('[VocabBridge] Script load error for exam:', examId);
-            resolve(null);
-          };
-          document.head.appendChild(fallbackScript);
-        };
-        document.head.appendChild(script);
+        script.src = path;
+        script.onload = () => { script.remove(); resolve(true); };
+        script.onerror = () => { script.remove(); resolve(false); };
+        document.head.append(script);
       });
+      if (ok && registry.get(id)) return registry.get(id);
     }
-  };
-
-  global.VocabBridge = Bridge;
-})(typeof window !== 'undefined' ? window : globalThis);
+    return null;
+  }
+}

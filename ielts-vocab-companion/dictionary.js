@@ -1,73 +1,47 @@
-(function (global) {
-  'use strict';
-  const DictService = {
-    _dictMap: null,
-    _loadingPromise: null,
+import { chineseMeaning } from './model.js';
 
-    async loadDictionary() {
-      if (this._dictMap) return this._dictMap;
-      if (this._loadingPromise) return this._loadingPromise;
-      this._loadingPromise = new Promise((resolve) => {
-        const finish = () => {
-          const map = new Map();
-          const localDicts = global.__LOCAL_DICTIONARIES__ || {};
-          if (localDicts.ecdict && Array.isArray(localDicts.ecdict.entries)) {
-            localDicts.ecdict.entries.forEach((entry) => {
-              if (entry.w) map.set(entry.w.toLowerCase(), entry);
-            });
-          }
-          this._dictMap = map;
-          resolve(map);
-        };
-        if (global.__LOCAL_DICTIONARIES__ && global.__LOCAL_DICTIONARIES__.ecdict) {
-          finish();
-          return;
-        }
-        const script = document.createElement('script');
-        script.src = './assets/wordlists/ecdict_reading.bundle.js';
-        script.onload = () => finish();
-        script.onerror = () => {
-          this._dictMap = new Map();
-          resolve(this._dictMap);
-        };
-        document.head.appendChild(script);
-      });
-      return this._loadingPromise;
-    },
-
-    async lookup(word) {
-      if (!word) return null;
-      const clean = word.toLowerCase().trim().replace(/[^a-z0-9'-]/g, '');
-      if (!clean) return null;
-      const map = await this.loadDictionary();
-      if (map.has(clean)) {
-        const e = map.get(clean);
-        return {
-          word: clean,
-          meaning: e.t || e.d || '暂无详细释义',
-          phonetic: e.p ? `/${e.p}/` : '',
-          detail: e.d || ''
-        };
-      }
-      if (clean.endsWith('s') && map.has(clean.slice(0, -1))) {
-        const e = map.get(clean.slice(0, -1));
-        return { word: clean, meaning: e.t || e.d, phonetic: e.p ? `/${e.p}/` : '' };
-      }
-      if (clean.endsWith('ed') && map.has(clean.slice(0, -2))) {
-        const e = map.get(clean.slice(0, -2));
-        return { word: clean, meaning: e.t || e.d, phonetic: e.p ? `/${e.p}/` : '' };
-      }
-      if (clean.endsWith('ing') && map.has(clean.slice(0, -3))) {
-        const e = map.get(clean.slice(0, -3));
-        return { word: clean, meaning: e.t || e.d, phonetic: e.p ? `/${e.p}/` : '' };
-      }
-      return {
-        word: clean,
-        meaning: '点击可手动补充释义',
-        phonetic: ''
-      };
-    }
+export function normalizeEntry(entry) {
+  const translation = entry.t || '';
+  const pos = translation.match(/\b(adj|adv|vt|vi|v|n|a|prep|pron|conj|num)\./i)?.[1] || '';
+  const meaning = translation.split(/[；\n]/u)[0].trim().slice(0, 1800);
+  return {
+    word: entry.w.toLowerCase(), phonetic: entry.p ? `/${entry.p}/` : '',
+    contextMeaning: chineseMeaning(meaning) ? meaning : '', dictionaryMeaning: translation,
+    meaningSource: 'dictionary', pos, synonyms: []
   };
+}
 
-  global.DictService = DictService;
-})(typeof window !== 'undefined' ? window : globalThis);
+export class Dictionary {
+  async load() {
+    if (this.loading) return this.loading;
+    this.loading = new Promise((resolve, reject) => {
+      const finish = () => {
+        const entries = globalThis.__LOCAL_DICTIONARIES__?.ecdict?.entries;
+        if (!entries?.length) { reject(new Error('离线词库为空')); return; }
+        this.map = new Map(entries.map((e) => [e.w.toLowerCase(), e]));
+        this.fallback = entries.filter((e) => e.tags?.some((tag) => ['ielts', 'toefl', 'cet6'].includes(tag)))
+          .map(normalizeEntry).filter((e) => e.contextMeaning && !/人名|缩写|abbr\./i.test(e.contextMeaning));
+        resolve(this);
+      };
+      if (globalThis.__LOCAL_DICTIONARIES__?.ecdict) return finish();
+      const script = document.createElement('script');
+      script.src = './assets/wordlists/ecdict_reading.bundle.js';
+      script.onload = finish;
+      script.onerror = () => reject(new Error('离线词库加载失败，请重新加载'));
+      document.head.append(script);
+    }).catch((error) => { this.loading = null; throw error; });
+    return this.loading;
+  }
+
+  async lookup(word) {
+    await this.load();
+    const clean = word.trim().toLowerCase();
+    const candidates = [clean, clean.replace(/ies$/, 'y'), clean.replace(/es$/, ''),
+      clean.replace(/s$/, ''), clean.replace(/ied$/, 'y'), clean.replace(/ed$/, ''),
+      clean.replace(/d$/, ''), clean.replace(/ing$/, ''), clean.replace(/ing$/, 'e'),
+      clean.replace(/([a-z])\1(?:ed|ing)$/, '$1')];
+    const entry = candidates.map((candidate) => this.map.get(candidate)).find(Boolean);
+    return entry ? { ...normalizeEntry(entry), word: clean } :
+      { word: clean, phonetic: '', contextMeaning: '', dictionaryMeaning: '', pos: '', synonyms: [], meaningSource: 'dictionary' };
+  }
+}

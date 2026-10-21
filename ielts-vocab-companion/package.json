@@ -1,0 +1,16 @@
+{
+  "name": "ielts-vocab-companion",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test tests/*.test.js",
+    "test:e2e": "node tests/browser.mjs"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.4",
+    "playwright": "1.56.1"
+  },
+  "engines": { "node": ">=18.19" }
+}

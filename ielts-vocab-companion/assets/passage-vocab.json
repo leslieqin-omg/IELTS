@@ -1,0 +1,53 @@
+{
+  "passages": {
+    "p1-high-01": [
+      { "word": "court", "pos": "n.", "contextMeaning": "宫廷；皇室及其随从（非“法庭”）", "synonyms": ["royal household"] },
+      { "word": "infused", "pos": "v.", "contextMeaning": "（茶叶在水中）浸泡，泡出味道", "synonyms": ["steeped"] },
+      { "word": "intrigued", "pos": "v.", "contextMeaning": "使产生好奇心；引起兴趣", "synonyms": ["aroused the curiosity of"] },
+      { "word": "beverage", "pos": "n.", "contextMeaning": "饮料（本篇指茶）", "synonyms": ["drink"] },
+      { "word": "benefits", "pos": "n.", "contextMeaning": "益处；好处", "synonyms": ["advantages"] },
+      { "word": "drawbacks", "pos": "n.", "contextMeaning": "弊端；不利之处", "synonyms": ["disadvantages"] },
+      { "word": "controversy", "pos": "n.", "contextMeaning": "（关于饮茶利弊的）争论", "synonyms": ["debate", "dispute"] },
+      { "word": "portable", "pos": "adj.", "contextMeaning": "便携的（形容茶具）", "synonyms": ["easy to carry"] },
+      { "word": "treaty", "pos": "n.", "contextMeaning": "（两国间的贸易）条约", "synonyms": ["formal agreement"] },
+      { "word": "caravan", "pos": "n.", "contextMeaning": "（由骆驼组成的）商队", "synonyms": ["group of traders travelling together"] }
+    ]
+  },
+  "synonyms": {
+    "increase": ["rise", "grow"],
+    "decrease": ["decline", "fall"],
+    "significant": ["important", "substantial"],
+    "rapid": ["fast", "swift"],
+    "ancient": ["very old"],
+    "benefit": ["advantage"],
+    "drawback": ["disadvantage"],
+    "consume": ["use", "eat or drink"],
+    "controversy": ["debate", "dispute"],
+    "evidence": ["supporting facts"],
+    "demonstrate": ["show"],
+    "indicate": ["show", "suggest"],
+    "require": ["need"],
+    "maintain": ["preserve", "keep"],
+    "abandon": ["give up"],
+    "abundant": ["plentiful"],
+    "scarce": ["in short supply"],
+    "adapt": ["adjust"],
+    "sufficient": ["enough"],
+    "obtain": ["acquire", "get"],
+    "considerable": ["substantial"],
+    "consequence": ["result"],
+    "eventually": ["in the end"],
+    "environment": ["surroundings"],
+    "decline": ["decrease"],
+    "traditional": ["customary"],
+    "complex": ["complicated"],
+    "essential": ["necessary"],
+    "efficient": ["productive with little waste"],
+    "expert": ["specialist"],
+    "research": ["investigation"],
+    "species": ["type of organism"],
+    "preserve": ["protect", "keep"],
+    "transform": ["change"],
+    "reveal": ["show", "make known"]
+  }
+}
