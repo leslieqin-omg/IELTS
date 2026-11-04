@@ -1,0 +1,49 @@
+{
+  "months": [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December"
+  ],
+  "countries_and_regions": [
+    "Africa",
+    "America",
+    "Argentina",
+    "Asia",
+    "China",
+    "Europe",
+    "France",
+    "Germany",
+    "India",
+    "Italy",
+    "Japan",
+    "Mexico",
+    "North Africa",
+    "Russia",
+    "Scotland",
+    "South Africa",
+    "Southeast Asian",
+    "Spain",
+    "Sweden",
+    "the USA",
+    "West European"
+  ],
+  "days_of_week": [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday"
+  ],
+  "additional_case_sensitive": []
+}

@@ -1,0 +1,17 @@
+.DS_Store
+*.log
+__pycache__/
+*.pyc
+temp_check.js
+IELTS-practice/
+IELTS_Dictation/
+section_1_20261002/
+section_2_20261008/
+section_3_20261012/
+/patch_*.py
+/patch_*.js
+/server.py
+/start.sh
+/start_ielts_practice.sh
+.agents/
+*.backup_*
