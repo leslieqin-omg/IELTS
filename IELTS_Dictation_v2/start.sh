@@ -19,7 +19,7 @@ if ! command -v python3 &> /dev/null; then
 fi
 
 PORT="${PORT:-8766}"
-HOST="${HOST:-0.0.0.0}"
+HOST="${HOST:-127.0.0.1}"
 
 # Optional restart flag: terminate existing processes on target port
 if [[ "$1" == "--restart" || "$1" == "-r" ]]; then

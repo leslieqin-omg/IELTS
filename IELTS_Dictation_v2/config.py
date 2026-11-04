@@ -30,7 +30,7 @@ SHANGHAI_TZ = timezone(timedelta(hours=8))
 
 # Server Runtime
 DEFAULT_PORT = int(os.environ.get("PORT", "8766"))
-DEFAULT_HOST = os.environ.get("HOST", "0.0.0.0")
+DEFAULT_HOST = os.environ.get("HOST", "127.0.0.1")
 
 # Listening Module Schedulers (whole calendar days only, Asia/Shanghai midnight rollover)
 LISTENING_INTERVALS = [1, 2, 4, 7, 15, 30]  # whole days

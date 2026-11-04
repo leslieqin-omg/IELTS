@@ -1,145 +1,35 @@
-# Manual Verification Checklist: IELTS_Dictation_v2
+# macOS 手工验证清单
 
-This checklist outlines the manual verification steps for features that involve interactive browser UX, audio playback, speech synthesis fallback, and UI state preservation.
+## 启动与停止
 
----
+- [ ] 在 Finder 双击 `Start.command`，首次运行时按 README 指引允许 macOS 打开。
+- [ ] 确认浏览器打开 `http://127.0.0.1:8766`，页面顶部显示“本机运行”，没有手机同步或写作模块入口。
+- [ ] 确认应用只在本机访问；用另一台设备访问 Mac 的局域网地址不应连接成功。
+- [ ] 在启动终端按 `Control-C`，确认服务停止；再次双击启动入口可正常恢复。
 
-## 1. Prerequisites & Server Launch
+## 听力听写
 
-- [ ] **Port Check**:
-  ```bash
-  lsof -i :8765
-  lsof -i :8766
-  ```
-  Ensure port 8765 remains running untouched (if original server was running). Ensure port 8766 is available.
-- [ ] **Start v2 Server**:
-  ```bash
-  cd /Users/leslie/Documents/ChatGPT/IELTS/IELTS_Dictation_v2
-  ./start.sh
-  ```
-  Verify console outputs:
-  - Startup scanning message for capitalized vocabulary words.
-  - Server listening message: `Running on http://127.0.0.1:8766`.
-- [ ] **Open Browser**: Navigate to `http://127.0.0.1:8766` in Chrome, Safari, or Edge.
+- [ ] 开始默写后自动播放英音，英文单词和中文释义在提交前保持隐藏，输入框自动获得焦点。
+- [ ] 点击重播按钮或使用页面提示的重播快捷键，音频可再次播放且输入内容保留。
+- [ ] 本地 MP3 缺失时检查浏览器使用 `en-GB` 语音合成回退，无未处理错误。
+- [ ] 提交正确拼写后显示释义；错词显示反馈并在本轮稍后重新排队。
+- [ ] 检查月份、星期及国家/地区等专名的大小写规则；普通词接受大小写差异和首尾空格。
 
----
+## 复习与持久化
 
-## 2. Module Navigation & Top-Level Tabs
+- [ ] 今日待复习词、掌握统计和每日打卡信息显示合理。
+- [ ] 复习周期按 1、2、4、7、15、30 天推进，并遵循 Asia/Shanghai 日历日。
+- [ ] 调整每轮复习上限及每日新词数后保存，刷新页面后设置仍保留。
+- [ ] 开始一轮听写并完成数题，刷新页面后可恢复当前学习会话。
+- [ ] 退出服务再启动，确认词条复习阶段、错误记录、会话和打卡数据仍在。
 
-- [ ] **Top-Level Tabs Display**:
-  - Verify two tabs appear in the top navigation bar: `[ 🎧 听力默写 (Listening) ]` and `[ ✍️ 写作默写 (Writing) ]`.
-  - Verify that the Listening tab is active by default on initial page load.
-- [ ] **Theme Toggle**:
-  - Click theme toggle icon (dark/light mode).
-  - Verify all colors and cards adapt cleanly with proper contrast.
+## 界面检查
 
----
+- [ ] 浅色与深色主题下文字、按钮和状态颜色清晰可读。
+- [ ] 将窗口缩窄至 macOS 分屏常见宽度，导航、听写卡片和设置弹窗不互相遮挡。
 
-## 3. Listening Dictation & Audio Playback
+## 自动测试
 
-- [ ] **Initial Audio & Card State**:
-  - In the Listening module, click **"开始默写"** (Start Dictation).
-  - Confirm British English (`en-GB`) audio plays automatically for the first card.
-  - Confirm the English word is **hidden**.
-  - Confirm the Chinese gloss (`glossZh`) is **hidden**.
-  - Confirm the cursor automatically focuses inside the answer input box.
-- [ ] **Replay Button**:
-  - Click the **"🔊 重播发音"** (Replay Audio) button.
-  - Confirm the audio plays again clearly without reloading the page or altering the text input.
-  - Confirm unlimited replays can be triggered.
-- [ ] **Keyboard Shortcut Replay**:
-  - With the cursor inside the text box, press the configured shortcut (`Ctrl+R` or `Space` / `F2`).
-  - Confirm the audio plays immediately and the input text is not lost or overwritten.
-- [ ] **SpeechSynthesis Fallback (Missing Audio)**:
-  - Open browser DevTools (F12) -> Network tab.
-  - If a word lacks a local MP3 file (`/static/audio/<word>.mp3` returns 404), verify that:
-    - No unhandled runtime error appears in the Console.
-    - The browser's Web Speech API (`window.speechSynthesis.speak`) is invoked with `utterance.lang = 'en-GB'`.
-    - Clear British English speech is heard through the speakers.
-
----
-
-## 4. Two-Tier Spelling Judgment & Capitalization
-
-- [ ] **Month Name Capitalization**:
-  - When prompted with a month word (e.g. `January`), type lowercase `january` and press Enter.
-  - Confirm the submission is evaluated as **Incorrect** (reason: capitalization error).
-  - Retype `January` with leading capital letter and press Enter.
-  - Confirm it is evaluated as **Correct**.
-  - Confirm that **only after** submission, the Chinese gloss and phonetic guide are displayed.
-- [ ] **Country Name Capitalization**:
-  - When prompted with a country/region (e.g. `France`), type `france` and press Enter -> confirm evaluated as **Incorrect**.
-  - Retype `France` -> confirm evaluated as **Correct**.
-- [ ] **General Vocabulary (Case-Insensitive)**:
-  - When prompted with a regular word (e.g. `danger` or `creative`), type `danger` -> confirm accepted.
-  - If target was capitalized in raw data (`Carpets` or `Water`), type lowercase `carpets` or `water` -> confirm accepted as **Correct**.
-- [ ] **Trimming**:
-  - Type leading or trailing spaces (e.g. `  station  `) -> confirm spaces are trimmed and word is accepted.
-
----
-
-## 5. Writing Dictation Replication
-
-- [ ] **Switch to Writing Module**:
-  - Click the `[ ✍️ 写作默写 (Writing) ]` tab.
-- [ ] **Audio Absence**:
-  - Click **"开始默写"** in the Writing module.
-  - Confirm **NO audio** plays (writing module is text-only).
-- [ ] **Prompt Display**:
-  - Confirm the default prompt shows the **Chinese definition** and word length/hint.
-  - Confirm notes in `【...】` and example sentences are hidden until submission.
-- [ ] **Answer Submission**:
-  - Type the English word and press Enter.
-  - Confirm instant evaluation against migrated writing vocabulary (230 words).
-
----
-
-## 6. Cross-Module Tab State Preservation
-
-- [ ] **In-Session Input Preservation**:
-  - In the Listening module during an active session, type half of a word into the input box (e.g. `libra`).
-  - Do NOT submit.
-  - Click the `[ ✍️ 写作默写 (Writing) ]` tab.
-  - Confirm the Writing module view is shown.
-  - Click back to the `[ 🎧 听力默写 (Listening) ]` tab.
-  - Verify that:
-    - The active session was NOT reset.
-    - The current word card index remains the same.
-    - The input field still contains `libra`.
-- [ ] **Browser Refresh Persistence**:
-  - Advance 3 cards in Listening.
-  - Refresh the browser (F5 / Cmd+R).
-  - Verify the active session queue resumes at the exact same card.
-
----
-
-## 7. Settings Isolation & Persistence
-
-- [ ] **Listening Settings Update**:
-  - Open the **设置** (Settings) panel under the Listening tab.
-  - Set `单次复习上限 (Review Cap)` to `45`.
-  - Set `每日新词数 (Daily New Words)` to `15`.
-  - Click **保存设置** (Save). Confirm success message.
-- [ ] **Writing Settings Verification**:
-  - Switch to the Writing tab and open its Settings panel.
-  - Confirm that Writing `Review Cap` is still `30` and `Daily New Words` is still `10` (unaffected).
-- [ ] **Validation Error Handling**:
-  - In Writing Settings, set Review Cap to `0` or `-5` and click Save.
-  - Confirm clear error message: review cap must be at least 1.
-  - Set Daily New Words to `-1` -> confirm clear error message.
-- [ ] **Server Restart Persistence**:
-  - Stop the server (Ctrl+C).
-  - Restart the server with `./start.sh`.
-  - Reload the browser.
-  - Open Listening Settings: confirm Review Cap is still `45` and Daily New Words is still `15`.
-  - Open Writing Settings: confirm Review Cap is still `30`.
-
----
-
-## 8. Original Directory Verification
-
-- [ ] Run terminal command:
-  ```bash
-  python3 -m unittest tests/test_original_hash.py
-  ```
-  Confirm 0 modifications to `/Users/leslie/Documents/ChatGPT/IELTS/IELTS_Dictation`.
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py'
+```

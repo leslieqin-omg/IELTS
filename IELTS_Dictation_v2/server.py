@@ -13,7 +13,7 @@ Features:
   whole-calendar-day intervals ([1, 2, 4, 7, 15, 30] days), Shanghai midnight rollover.
 - Full feature parity with original IELTS_Dictation UI (Home dashboard, Section/Scope/Order
   filtering, Word Bank CRUD, Batch Delete, Trash bin & Restore, 14-day Check-in Calendar,
-  Ebbinghaus live countdown & stage distribution, LAN Mobile Sync, plus Settings).
+  Ebbinghaus live countdown & stage distribution, plus Settings).
 - Thread-safe storage with atomic persistence (.tmp -> flush -> fsync -> os.replace).
 - Complete settings isolation & boundary validation.
 - Static file serving (HTML, CSS, JS, Audio) with path traversal security.
@@ -27,7 +27,6 @@ import glob
 import json
 import time
 import datetime
-import socket
 import subprocess
 import mimetypes
 import urllib.parse
@@ -61,29 +60,6 @@ listening_store = ModuleStore(config.LISTENING_DATA_FILE, config.DEFAULT_LISTENI
 
 # Initialize spelling judge
 spelling_judge = SpellingJudge(config.CASE_SENSITIVE_WORDS_FILE)
-
-
-def get_local_ip() -> str:
-    """Retrieve local network IP address for LAN access."""
-    try:
-        out = subprocess.check_output('/sbin/ifconfig en0', shell=True).decode('utf-8')
-        m = re.search(r'inet\s+(\d+\.\d+\.\d+\.\d+)', out)
-        if m and not m.group(1).startswith('127.'):
-            return m.group(1)
-    except Exception:
-        pass
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.settimeout(0.5)
-        s.connect(('10.255.255.255', 1))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
-        try:
-            return socket.gethostbyname(socket.gethostname())
-        except Exception:
-            return "127.0.0.1"
 
 
 def compute_checkin_stats(checkins: dict) -> dict:
@@ -244,7 +220,6 @@ def compute_module_stats(store: ModuleStore, module: str = "listening") -> dict:
         for i in range(max_stages)
     ]
 
-    local_ip = get_local_ip()
     return {
         "stage_counts": stage_counts,
         "due_count": due_count,
@@ -265,9 +240,9 @@ def compute_module_stats(store: ModuleStore, module: str = "listening") -> dict:
         "trash_count": len(store.trash),
         "now_ts": now_ts,
         "settings": store.get_settings(),
-        "local_ip": local_ip,
+        "local_ip": "127.0.0.1",
         "port": config.DEFAULT_PORT,
-        "mobile_url": f"http://{local_ip}:{config.DEFAULT_PORT}"
+        "mobile_url": f"http://127.0.0.1:{config.DEFAULT_PORT}"
     }
 
 
@@ -682,12 +657,11 @@ class DictationHandler(SimpleHTTPRequestHandler):
 
         # 2. Network status endpoint
         if url_path == "/api/network":
-            local_ip = get_local_ip()
             port = config.DEFAULT_PORT
             self.send_json(200, {
-                "local_ip": local_ip,
+                "local_ip": "127.0.0.1",
                 "port": port,
-                "mobile_url": f"http://{local_ip}:{port}"
+                "mobile_url": f"http://127.0.0.1:{port}"
             })
             return
 
@@ -1191,23 +1165,20 @@ def run_server(port: int = config.DEFAULT_PORT, host: str = config.DEFAULT_HOST)
     try:
         httpd = ThreadingHTTPServer(server_address, DictationHandler)
     except OSError as e:
-        local_ip = get_local_ip()
         if e.errno == 48:
             print("=" * 75, flush=True)
             print(f"⚠️  Port {port} is currently occupied.", flush=True)
             print(f"👉 Local Access : http://127.0.0.1:{port}", flush=True)
-            print(f"👉 LAN Access   : http://{local_ip}:{port}", flush=True)
             print(f"💡 To force restart: python3 server.py --restart", flush=True)
             print("=" * 75, flush=True)
             return
         raise e
 
-    local_ip = get_local_ip()
     print("=" * 75, flush=True)
     print(f" IELTS_Dictation_v2 Server Started Successfully!", flush=True)
     print(f" Dedicated Standalone Listening Dictation Application", flush=True)
     print(f" Local Web Access : http://127.0.0.1:{port}", flush=True)
-    print(f" LAN Mobile Sync  : http://{local_ip}:{port}", flush=True)
+    print(f" Scope            : This Mac only (127.0.0.1)", flush=True)
     print(f" Listening Store  : {len(listening_words)} words (Asia/Shanghai midnight calendar review)", flush=True)
     print(f" Data Isolation   : Strict independent JSON store & atomic persistence enabled", flush=True)
     print("=" * 75, flush=True)

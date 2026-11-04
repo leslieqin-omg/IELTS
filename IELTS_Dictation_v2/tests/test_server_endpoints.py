@@ -114,9 +114,9 @@ class TestServerEndpoints(unittest.TestCase):
                 return code, raw
 
     def test_01_config_port_and_host(self):
-        """Verifies configured port is 8766 (distinct from original 8765) and host is 0.0.0.0."""
+        """Verifies configured port is 8766 and host is local-only by default."""
         self.assertEqual(config.DEFAULT_PORT, 8766)
-        self.assertEqual(config.DEFAULT_HOST, "0.0.0.0")
+        self.assertEqual(config.DEFAULT_HOST, "127.0.0.1")
 
     def test_02_listening_get_endpoints(self):
         """Verifies GET endpoints for listening module return HTTP 200 and expected schemas."""
@@ -130,7 +130,9 @@ class TestServerEndpoints(unittest.TestCase):
         status, body = self._request("/api/listening/stats")
         self.assertEqual(status, 200)
         self.assertIn("total", body)
-        self.assertIn("due", body)
+        self.assertIn("due_count", body)
+        self.assertEqual(body.get("local_ip"), "127.0.0.1")
+        self.assertEqual(body.get("mobile_url"), "http://127.0.0.1:8766")
 
         # 3. Checkin
         status, body = self._request("/api/listening/checkin")
@@ -152,9 +154,9 @@ class TestServerEndpoints(unittest.TestCase):
         # 6. Network status
         status, body = self._request("/api/network")
         self.assertEqual(status, 200)
-        self.assertIn("local_ip", body)
+        self.assertEqual(body.get("local_ip"), "127.0.0.1")
         self.assertEqual(body.get("port"), 8766)
-        self.assertIn("mobile_url", body)
+        self.assertEqual(body.get("mobile_url"), "http://127.0.0.1:8766")
 
     def test_03_settings_validation_boundary_conditions(self):
         """Adversarial & Boundary Verification for POST /api/listening/settings."""

@@ -125,13 +125,12 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      color: var(--success);
+      background: var(--input-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
       padding: 4px 10px;
       border-radius: 20px;
       font-size: 0.8rem;
-      cursor: pointer;
     }
 
     .sync-dot {
@@ -815,7 +814,7 @@
       font-style: normal;
     }
 
-    /* 模态框 (局域网扫码/手机同步) */
+    /* Shared modal styling */
     .modal-overlay {
       position: fixed;
       top: 0;
@@ -1414,42 +1413,7 @@
       color: var(--primary);
     }
 
-    /* ===== v2 顶层听力/写作双模块切换器与听力发音组件 ===== */
-    .module-switcher {
-      display: inline-flex;
-      background: var(--input-bg);
-      border: 1.5px solid var(--card-border);
-      padding: 4px;
-      border-radius: 12px;
-      gap: 4px;
-    }
-    .module-tab-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      padding: 7px 14px;
-      border-radius: 9px;
-      cursor: pointer;
-      font-size: 0.9rem;
-      font-weight: 700;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s ease;
-    }
-    .module-tab-btn:hover {
-      color: var(--text);
-    }
-    .module-tab-btn.active-listening {
-      background: linear-gradient(135deg, #0ea5e9, #6366f1);
-      color: #ffffff;
-      box-shadow: 0 3px 10px rgba(14, 165, 233, 0.3);
-    }
-    .module-tab-btn.active-writing {
-      background: linear-gradient(135deg, #10b981, #059669);
-      color: #ffffff;
-      box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3);
-    }
+    /* ===== Listening audio controls ===== */
     .audio-dictation-box {
       display: none;
       flex-direction: column;
@@ -1547,19 +1511,10 @@
   <header>
     <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
       <div class="brand" onclick="switchTab('home')">
-        <span id="brand-icon">✍️</span>
-        <div id="brand-title">雅思写作默写</div>
+        <span id="brand-icon">🎧</span>
+        <div id="brand-title">雅思听力听写</div>
       </div>
 
-      <!-- 顶层双模块独立切换器 (R2: Listening Dictation vs Writing Dictation) -->
-      <div class="module-switcher" role="tablist" aria-label="模块切换">
-        <button type="button" id="tab-listening" class="module-tab-btn" onclick="switchModule('listening')" title="听力默写 (9fnn过滤词库 · 英音发音听写 · 按天艾宾浩斯)">
-          🎧 听力默写 (Listening)
-        </button>
-        <button type="button" id="tab-writing" class="module-tab-btn active-writing" onclick="switchModule('writing')" title="写作默写 (看中文默写英文 · 无音频 · 原版分钟/天艾宾浩斯)">
-          ✍️ 写作默写 (Writing)
-        </button>
-      </div>
     </div>
 
     <div class="nav-tabs">
@@ -1570,12 +1525,12 @@
     </div>
 
     <div class="header-actions">
-      <button class="icon-btn" id="btn-open-settings" onclick="openSettingsModal()" title="配置各模块单次复习上限与每日新词数" style="font-weight: 600;">
+      <button class="icon-btn" id="btn-open-settings" onclick="openSettingsModal()" title="配置听力单次复习上限与每日新词数" style="font-weight: 600;">
         ⚙️ 复习设置
       </button>
-      <div class="sync-badge" onclick="openSyncModal()" title="电脑与手机同一局域网同步">
+      <div class="sync-badge" title="服务仅在此 Mac 本机运行">
         <span class="sync-dot"></span>
-        <span id="ip-indicator">手机同步</span>
+        <span>本机运行</span>
       </div>
       <button class="icon-btn" onclick="toggleTheme()" title="切换亮暗主题">🌓</button>
     </div>
@@ -1660,8 +1615,8 @@
       </div>
 
       <div class="action-box">
-        <div class="action-title" id="home-action-title">看到中文释义，默写英文单词</div>
-        <div class="action-sub" id="home-action-sub">无需发音干扰 · 专注雅思核心词汇拼写与搭配记忆</div>
+        <div class="action-title" id="home-action-title">听英音，默写雅思听力词汇</div>
+        <div class="action-sub" id="home-action-sub">提交后揭晓释义 · 错词自动回流 · 按艾宾浩斯周期复习</div>
 
         <!-- 未完成进度提示与快速接续卡片 -->
         <div id="resume-banner" style="display: none; background: rgba(59, 130, 246, 0.08); border: 1.5px solid rgba(59, 130, 246, 0.35); border-radius: 12px; padding: 16px 20px; margin: 16px 0 20px; text-align: left;">
@@ -1737,8 +1692,8 @@
 
       <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
         <div>
-          <div style="font-weight: 600; font-size: 0.95rem;" id="scan-box-title">📁 自动扫描写作 Section 新词 (仅导入写作词库)</div>
-          <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;" id="scan-box-desc">放入新的 section_1_2026xxxx 文件夹及 Excel 后，点击右侧即可自动增量同步至写作词库 (不影响听力词库)</div>
+        <div style="font-weight: 600; font-size: 0.95rem;" id="scan-box-title">🎧 同步雅思听力核心词库</div>
+          <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;" id="scan-box-desc">同步听力场景词汇并保留已有学习进度；数字、人名拼写与编号会自动过滤。</div>
         </div>
         <button class="icon-btn" onclick="triggerScan()" id="btn-scan" style="background: var(--primary); color: #fff; border: none; font-weight: 600; padding: 8px 16px;">
           🔄 重新扫描 Excel
@@ -2064,32 +2019,6 @@
     </div>
   </div>
 
-  <!-- 手机端同步与局域网二维码模态框 -->
-  <div class="modal-overlay" id="sync-modal" onclick="closeSyncModal(event)">
-    <div class="modal-card" onclick="event.stopPropagation()">
-      <h3 style="font-size: 1.2rem; margin-bottom: 8px;">📱 手机与电脑实时同步</h3>
-      <p style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.5;">
-        让手机和电脑连接同一个 Wi-Fi（局域网），手机浏览器扫码或直接打开下方链接，复习进度完全实时共享！
-      </p>
-
-      <div class="qr-container" id="qr-box">
-        <canvas id="qr-canvas" width="180" height="180"></canvas>
-      </div>
-
-      <div class="url-chip" id="mobile-url-text">http://127.0.0.1:8766</div>
-
-      <button class="icon-btn" onclick="copyMobileUrl()" style="margin: 0 auto 16px; background: var(--primary); color: #fff; border: none;">
-        📋 复制手机访问链接
-      </button>
-
-      <div>
-        <button class="icon-btn" onclick="closeSyncModal()" style="margin: 0 auto; width: 100px; justify-content: center;">
-          关闭
-        </button>
-      </div>
-    </div>
-  </div>
-
   <!-- 词条编辑 / 新增模态框 -->
   <div class="modal-overlay" id="edit-word-modal" onclick="closeEditWordModal(event)">
     <div class="modal-card" onclick="event.stopPropagation()" style="max-width: 520px; text-align: left; max-height: 90vh; overflow-y: auto;">
@@ -2184,15 +2113,15 @@
     </div>
   </div>
 
-  <!-- 模块独立复习与新词上限设置模态框 (R7 / R8) -->
+  <!-- 听力复习与新词上限设置 -->
   <div class="modal-overlay" id="settings-modal" onclick="closeSettingsModal(event)">
     <div class="modal-card" onclick="event.stopPropagation()" style="max-width: 520px; text-align: left;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text);">⚙️ 模块复习上限与每日新词设置</h3>
+        <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text);">⚙️ 听力复习设置</h3>
         <button onclick="closeSettingsModal()" style="background: none; border: none; font-size: 1.3rem; color: var(--text-muted); cursor: pointer; padding: 4px;">✕</button>
       </div>
       <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 16px;">
-        听力与写作模块的配置分别独立存储在各自的 JSON 数据文件中，互不干扰。超额未复习的到期词将按到期时间先后自动顺延至后续轮次。
+        调整每轮复习数量。超额到期词会按到期时间顺延，设置保存在本机。
       </p>
 
       <div style="background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px;">
@@ -2213,26 +2142,6 @@
           </button>
         </div>
       </div>
-
-      <div style="background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px;">
-        <div style="font-weight: 700; font-size: 0.98rem; color: #10b981; margin-bottom: 10px;">✍️ 写作默写模块 (data/writing.json)</div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-          <div>
-            <label style="display: block; font-size: 0.82rem; color: var(--text-muted); margin-bottom: 4px;">单次复习上限 (≥1, 默认 30)：</label>
-            <input type="number" id="set-writing-cap" min="1" step="1" value="30" class="form-control-input" />
-          </div>
-          <div>
-            <label style="display: block; font-size: 0.82rem; color: var(--text-muted); margin-bottom: 4px;">每日新词数量 (≥0, 0为停用新词)：</label>
-            <input type="number" id="set-writing-new" min="0" step="1" value="10" class="form-control-input" />
-          </div>
-        </div>
-        <div style="margin-top: 10px; text-align: right;">
-          <button type="button" class="icon-btn" onclick="saveModuleSettings('writing')" style="background: #10b981; color: #fff; border: none; font-weight: 600; padding: 6px 14px; font-size: 0.84rem;">
-            💾 仅保存写作设置
-          </button>
-        </div>
-      </div>
-
       <div id="settings-error-msg" style="display: none; color: var(--error); font-size: 0.85rem; font-weight: 600; margin-bottom: 10px;"></div>
 
       <div style="display: flex; justify-content: flex-end; gap: 10px;">
@@ -2245,41 +2154,7 @@
   <script src="/static/js/audio.js"></script>
 
   <script>
-    function drawFallbackQR(url) {
-      const canvas = document.getElementById('qr-canvas');
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, 180, 180);
-      
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(15, 15, 45, 45);
-      ctx.clearRect(23, 23, 29, 29);
-      ctx.fillRect(28, 28, 19, 19);
-
-      ctx.fillRect(120, 15, 45, 45);
-      ctx.clearRect(128, 23, 29, 29);
-      ctx.fillRect(133, 28, 19, 19);
-
-      ctx.fillRect(15, 120, 45, 45);
-      ctx.clearRect(23, 128, 29, 29);
-      ctx.fillRect(28, 133, 19, 19);
-
-      for (let i = 0; i < 7; i++) {
-        for (let j = 0; j < 7; j++) {
-          if ((i * 3 + j * 5) % 2 === 0) {
-            ctx.fillRect(70 + i * 6, 70 + j * 6, 4, 4);
-          }
-        }
-      }
-
-      ctx.fillStyle = '#0284c7';
-      ctx.font = 'bold 11px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('手机在同 Wi-Fi 访问', 90, 165);
-    }
-
-    let currentModule = localStorage.getItem('ielts_v2_active_module') || 'writing';
-    if (currentModule !== 'listening' && currentModule !== 'writing') currentModule = 'writing';
+    let currentModule = 'listening';
 
     function getApiPrefix(mod) {
       return '/api/' + (mod || currentModule);
@@ -2290,13 +2165,11 @@
     }
 
     let moduleSettings = {
-      listening: { review_cap: 40, daily_new_words: 10 },
-      writing: { review_cap: 30, daily_new_words: 10 }
+      listening: { review_cap: 40, daily_new_words: 10 }
     };
 
     let moduleSnapshots = {
-      listening: null,
-      writing: null
+      listening: null
     };
 
     let appState = {
@@ -2308,23 +2181,9 @@
       sessionWrong: 0,
       hasErrorOnCurrent: false,
       isWordCompleted: false,
-      currentSubTab: 'home',
-      mobileUrl: "",
-      networkInfo: null
+      currentSubTab: 'home'
     };
     window.appState = appState;
-
-    const STAGE_NAMES_WRITING = [
-      "Stage 0 (5分钟初记)",
-      "Stage 1 (30分钟复习)",
-      "Stage 2 (12小时复习)",
-      "Stage 3 (1天复习)",
-      "Stage 4 (2天复习)",
-      "Stage 5 (4天复习)",
-      "Stage 6 (7天稳固)",
-      "Stage 7 (15天记忆)",
-      "Stage 8 (30天永久)"
-    ];
 
     const STAGE_NAMES_LISTENING = [
       "Stage 0 (未学新词)",
@@ -2336,10 +2195,8 @@
       "Stage 6 (30天长期稳固)"
     ];
 
-    function getStageName(stageNum, mod) {
-      const m = mod || currentModule;
-      const list = m === 'listening' ? STAGE_NAMES_LISTENING : STAGE_NAMES_WRITING;
-      return list[stageNum] || ('Stage ' + stageNum);
+    function getStageName(stageNum) {
+      return STAGE_NAMES_LISTENING[stageNum] || ('Stage ' + stageNum);
     }
 
     const CASE_SENSITIVE_PROPER_NOUNS = new Set([
@@ -2362,13 +2219,6 @@
     ]);
 
     function updateModuleBannerAndLabels() {
-      const btnListen = document.getElementById('tab-listening');
-      const btnWrite = document.getElementById('tab-writing');
-      if (btnListen && btnWrite) {
-        btnListen.className = 'module-tab-btn' + (currentModule === 'listening' ? ' active-listening' : '');
-        btnWrite.className = 'module-tab-btn' + (currentModule === 'writing' ? ' active-writing' : '');
-      }
-
       const brandIcon = document.getElementById('brand-icon');
       const brandTitle = document.getElementById('brand-title');
       const actionTitle = document.getElementById('home-action-title');
@@ -2387,7 +2237,7 @@
         if (actionTitle) actionTitle.innerText = '🎧 听英音 (en-GB) 发音，默写英文单词';
         if (actionSub) actionSub.innerText = '9fnn 过滤词库 · 提交后揭晓中文释义 · 月份与国家/地区名首字母须大写 · 按天艾宾浩斯';
         if (scanTitle) scanTitle.innerText = '🎧 同步 9fnn 听力核心词库 (仅导入听力词库)';
-        if (scanDesc) scanDesc.innerText = '自动过滤数字、人名拼写与编号，保留全部高频听力场景词并保留已有复习进度 (绝不影响写作词库)';
+        if (scanDesc) scanDesc.innerText = '自动过滤数字、人名拼写与编号，保留高频听力场景词及已有复习进度。';
         if (btnScan) btnScan.innerText = '🔄 重新同步听力词库';
         if (wordsTitle) wordsTitle.innerText = '🎧 雅思听力核心词库 (9fnn 过滤版)';
         if (scheduleDesc) scheduleDesc.innerText = '听力模块严格依据 1天 / 2天 / 4天 / 7天 / 15天 / 30天 整天艾宾浩斯周期调度 (Asia/Shanghai 零点跨天)。';
@@ -2395,23 +2245,9 @@
         if (stageSelect) {
           stageSelect.innerHTML = STAGE_NAMES_LISTENING.map((n, i) => '<option value="' + i + '">' + n + '</option>').join('');
         }
-      } else {
-        if (brandIcon) brandIcon.innerText = '✍️';
-        if (brandTitle) brandTitle.innerText = '雅思写作默写';
-        if (actionTitle) actionTitle.innerText = '✍️ 看到中文释义，默写英文单词';
-        if (actionSub) actionSub.innerText = '纯文本无发音干扰 · 专注雅思写作核心词汇拼写与搭配记忆 · 9阶分钟+天艾宾浩斯';
-        if (scanTitle) scanTitle.innerText = '📁 自动扫描写作 Section 新词 (仅导入写作词库)';
-        if (scanDesc) scanDesc.innerText = '放入新的 section_1_2026xxxx 文件夹及 Excel 后，点击右侧即可自动增量同步至写作词库 (绝不影响听力词库)';
-        if (btnScan) btnScan.innerText = '🔄 重新扫描 Excel';
-        if (wordsTitle) wordsTitle.innerText = '✍️ 雅思写作核心考点词库';
-        if (scheduleDesc) scheduleDesc.innerText = '写作模块严格依据 5分钟 / 30分钟 / 12小时 / 1天 / 2天 / 4天 / 7天 / 15天 / 30天 遗忘曲线动态调度。';
-        if (audioZone) audioZone.style.display = 'none';
-        if (stageSelect) {
-          stageSelect.innerHTML = STAGE_NAMES_WRITING.map((n, i) => '<option value="' + i + '">' + n + '</option>').join('');
-        }
       }
 
-      const curSet = moduleSettings[currentModule] || { review_cap: currentModule === 'listening' ? 40 : 30, daily_new_words: 10 };
+      const curSet = moduleSettings.listening;
       const capEl = document.getElementById('quota-review-cap');
       const newEl = document.getElementById('quota-daily-new');
       if (capEl) capEl.innerText = curSet.review_cap;
@@ -2518,15 +2354,10 @@
 
     async function openSettingsModal() {
       await fetchModuleSettings('listening');
-      await fetchModuleSettings('writing');
       const lCap = document.getElementById('set-listening-cap');
       const lNew = document.getElementById('set-listening-new');
-      const wCap = document.getElementById('set-writing-cap');
-      const wNew = document.getElementById('set-writing-new');
       if (lCap) lCap.value = moduleSettings.listening.review_cap;
       if (lNew) lNew.value = moduleSettings.listening.daily_new_words;
-      if (wCap) wCap.value = moduleSettings.writing.review_cap;
-      if (wNew) wNew.value = moduleSettings.writing.daily_new_words;
       const errEl = document.getElementById('settings-error-msg');
       if (errEl) {
         errEl.style.display = 'none';
@@ -2605,9 +2436,7 @@
         return;
       }
       updateModuleBannerAndLabels();
-      fetchNetworkInfo();
       fetchModuleSettings('listening');
-      fetchModuleSettings('writing');
       fetchStats();
       fetchCheckinInfo();
       fetchAllWords();
@@ -2848,20 +2677,6 @@
       document.getElementById('celebrate-modal').classList.remove('active');
     }
 
-
-    async function fetchNetworkInfo() {
-      try {
-        const res = await fetch('/api/network');
-        const data = await res.json();
-        appState.networkInfo = data;
-        appState.mobileUrl = data.mobile_url;
-        document.getElementById('mobile-url-text').innerText = data.mobile_url;
-        document.getElementById('ip-indicator').innerText = '手机同步: ' + data.local_ip;
-        drawFallbackQR(data.mobile_url);
-      } catch (e) {
-        console.error("Network info err:", e);
-      }
-    }
 
     async function fetchStats(silent = false) {
       const reqMod = currentModule;
@@ -3525,7 +3340,7 @@
       }
       if (data && data.success && data.result) {
         if (currentModule === 'listening') {
-          alert('🎧 9fnn 听力词库同步完成！当前听力词库共 ' + (data.result.total_words || 0) + ' 词（已自动排除数字/人名拼写/编号，且不影响写作词库）。');
+          alert('🎧 9fnn 听力词库同步完成！当前听力词库共 ' + (data.result.total_words || 0) + ' 词（已自动排除数字、人名拼写和编号）。');
         } else {
           const skippedFiles = data.result.skipped_files_count || 0;
           const newlyScanned = (data.result.newly_scanned_files || []).length;
@@ -3533,9 +3348,9 @@
           const totalWords = data.result.total_words || 0;
           let msg = '';
           if (newlyScanned === 0) {
-            msg = '扫描完成！已自动跳过已扫描过的文件（共 ' + skippedFiles + ' 个历史表格无需重复解析）。当前写作词库保持 ' + totalWords + ' 词。';
+            msg = '扫描完成！已跳过 ' + skippedFiles + ' 个已处理文件。当前词库共 ' + totalWords + ' 词。';
           } else {
-            msg = '扫描完成！增量扫描 ' + newlyScanned + ' 个新表格，新增 ' + newWords + ' 词，已跳过 ' + skippedFiles + ' 个历史文件。当前写作总词库: ' + totalWords + ' 词。';
+            msg = '扫描完成！处理 ' + newlyScanned + ' 个新文件，新增 ' + newWords + ' 词，跳过 ' + skippedFiles + ' 个已处理文件。当前词库共 ' + totalWords + ' 词。';
           }
           alert(msg);
         }
@@ -5556,23 +5371,6 @@
       } else {
         switchTab('home');
       }
-    }
-
-    function openSyncModal() {
-      document.getElementById('sync-modal').classList.add('active');
-    }
-
-    function closeSyncModal(e) {
-      document.getElementById('sync-modal').classList.remove('active');
-    }
-
-    function copyMobileUrl() {
-      const text = appState.mobileUrl || document.getElementById('mobile-url-text').innerText;
-      navigator.clipboard.writeText(text).then(() => {
-        alert('已复制手机访问链接：' + text + '，请直接在手机浏览器中打开！');
-      }).catch(() => {
-        alert('手机访问地址：' + text);
-      });
     }
 
     function toggleTheme() {
