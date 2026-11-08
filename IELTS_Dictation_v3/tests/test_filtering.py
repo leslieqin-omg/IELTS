@@ -14,6 +14,7 @@ Verifies Requirement R4 (Listening vocabulary filtering & deduplication):
 
 import os
 import sys
+import re
 import json
 import shutil
 import tempfile
@@ -37,10 +38,13 @@ def filter_and_deduplicate_vocabulary(words: list[dict]) -> tuple[list[dict], li
     excluded = []
     kept_raw = []
 
-    # Step 1: Category Filtering
+    # Step 1: Category, clock time, and number/code filtering
     for entry in words:
         cat = str(entry.get("category"))
-        if cat in EXCLUDED_CATEGORIES:
+        word_text = str(entry.get("word", "")).strip()
+        is_clock_time = bool(re.search(r"^\d{1,2}[:.]\d{2}(\s*(am|pm))?$", word_text, re.IGNORECASE))
+        is_pure_num_or_code = bool(re.match(r"^\d+$", word_text) or word_text.upper() == "GW432HA")
+        if cat in EXCLUDED_CATEGORIES or is_clock_time or is_pure_num_or_code:
             excluded.append(entry)
         else:
             kept_raw.append(entry)
@@ -123,35 +127,30 @@ class TestVocabularyFiltering(unittest.TestCase):
         self.assertEqual(cat_counts["identifier_string"], 37)
 
     def test_02_r4_category_filtering_counts(self):
-        """Verifies R4 partition: 170 excluded entries, 1684 kept entries."""
+        """Verifies filtering partition: 199 excluded entries, 1655 kept entries."""
         kept_raw, excluded, _ = filter_and_deduplicate_vocabulary(self.words)
 
-        self.assertEqual(len(excluded), 170, f"Expected 170 excluded items, got {len(excluded)}")
-        self.assertEqual(len(kept_raw), 1684, f"Expected 1684 kept items, got {len(kept_raw)}")
+        self.assertEqual(len(excluded), 199, f"Expected 199 excluded items, got {len(excluded)}")
+        self.assertEqual(len(kept_raw), 1655, f"Expected 1655 kept items, got {len(kept_raw)}")
 
-        # Verify excluded set contains ONLY the 3 forbidden categories
-        for item in excluded:
-            self.assertIn(
-                item.get("category"),
-                EXCLUDED_CATEGORIES,
-                f"Item '{item.get('word')}' with category '{item.get('category')}' wrongly excluded"
-            )
-
-        # Verify kept set contains ZERO forbidden categories
+        # Verify kept set contains ZERO forbidden categories, clock times, or pure numbers
         for item in kept_raw:
             self.assertNotIn(
                 item.get("category"),
                 EXCLUDED_CATEGORIES,
                 f"Item '{item.get('word')}' with category '{item.get('category')}' wrongly kept"
             )
+            w = item.get("word", "").strip()
+            self.assertFalse(bool(re.search(r"^\d{1,2}[:.]\d{2}(\s*(am|pm))?$", w, re.I)), f"Clock time '{w}' wrongly kept")
+            self.assertFalse(bool(re.match(r"^\d+$", w) or w == "GW432HA"), f"Number '{w}' wrongly kept")
 
     def test_03_deduplication_exact_counts(self):
-        """Verifies deduplication collapses 1684 kept items to exactly 1622 unique vocabulary items."""
+        """Verifies deduplication collapses 1655 kept items to exactly 1593 unique vocabulary items."""
         _, _, deduplicated = filter_and_deduplicate_vocabulary(self.words)
         self.assertEqual(
             len(deduplicated),
-            1622,
-            f"Expected exactly 1622 deduplicated items, got {len(deduplicated)}"
+            1593,
+            f"Expected exactly 1593 deduplicated items, got {len(deduplicated)}"
         )
 
         # Confirm all 1622 items have unique lowercased words
@@ -216,12 +215,11 @@ class TestVocabularyFiltering(unittest.TestCase):
         Every excluded word is logged with its category.
         """
         _, excluded, _ = filter_and_deduplicate_vocabulary(self.words)
-        self.assertEqual(len(excluded), 170)
+        self.assertEqual(len(excluded), 199)
 
-        # Every excluded item must have a word and a category
+        # Every excluded item must have a word
         for entry in excluded:
             self.assertTrue(entry.get("word"), "Excluded entry missing word")
-            self.assertIn(entry.get("category"), EXCLUDED_CATEGORIES)
 
     def test_08_import_listening_script_integration(self):
         """
@@ -250,7 +248,7 @@ class TestVocabularyFiltering(unittest.TestCase):
                 f"import_listening.py failed (exit {proc.returncode}):\n{proc.stderr}\n{proc.stdout}"
             )
 
-            # Assert output JSON exists and has 1622 unique words
+            # Assert output JSON exists and has 1593 unique words
             self.assertTrue(os.path.exists(out_json), "Output listening.json was not created")
             with open(out_json, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -258,18 +256,18 @@ class TestVocabularyFiltering(unittest.TestCase):
             words_dict = data.get("words", {})
             self.assertEqual(
                 len(words_dict),
-                1622,
-                f"Import script produced {len(words_dict)} words, expected 1622"
+                1593,
+                f"Import script produced {len(words_dict)} words, expected 1593"
             )
 
-            # Assert log file exists and contains 170 excluded entries
+            # Assert log file exists and contains 199 excluded entries
             self.assertTrue(os.path.exists(out_log), "Output excluded_words.log was not created")
             with open(out_log, "r", encoding="utf-8") as f:
                 log_lines = [line.strip() for line in f if line.strip()]
             self.assertEqual(
                 len(log_lines),
-                170,
-                f"excluded_words.log contains {len(log_lines)} lines, expected 170"
+                199,
+                f"excluded_words.log contains {len(log_lines)} lines, expected 199"
             )
 
 

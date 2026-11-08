@@ -509,18 +509,24 @@
         this.hasErrorOnCurrent = true;
         this.sessionStats.wrong++;
 
+        const isPretest = this.isPretest || (this.currentWord && this.currentWord._isPretest);
+
         // Submit failure to backend
-        Api.submitReview('listening', this.currentWord.id || targetWord, false).catch(err => {
+        Api.submitReview('listening', this.currentWord.id || targetWord, false, { is_pretest: isPretest }).catch(err => {
           console.error('Failed to submit listening review:', err);
         });
 
-        // Re-queue this word for retry later in this session so user masters it
-        this.requeueCurrentWord();
+        // Re-queue this word for retry later in this session ONLY in regular dictation, NOT in pretest
+        if (!isPretest) {
+          this.requeueCurrentWord();
+        }
 
         if (this.feedbackBox) {
           this.feedbackBox.style.display = 'block';
           this.feedbackBox.className = 'feedback-banner feedback-error';
-          if (result.reason === 'capitalization_error') {
+          if (isPretest) {
+            this.feedbackBox.innerHTML = `<span>❌ 摸底初测未拼对</span> <small>已规划入待背生词（不进行错词重测）。正确拼写: <strong>${targetWord}</strong></small>`;
+          } else if (result.reason === 'capitalization_error') {
             this.feedbackBox.innerHTML = '<span>⚠️ 首字母必须大写！</span> <small>月份、国家及专有名词必须首字母大写</small>';
           } else {
             this.feedbackBox.innerHTML = `<span>❌ 拼写错误！</span> <small>正确拼写为: <strong>${targetWord}</strong></small>`;
@@ -529,7 +535,7 @@
 
         if (this.btnNextWord) {
           this.btnNextWord.style.display = 'inline-flex';
-          this.btnNextWord.innerText = '记住了，继续 ➔';
+          this.btnNextWord.innerText = isPretest ? '下一词 ➔' : '记住了，继续 ➔';
         }
       }
 
@@ -563,7 +569,7 @@
     },
 
     requeueCurrentWord() {
-      if (!this.currentWord) return;
+      if (!this.currentWord || this.isPretest || (this.currentWord && this.currentWord._isPretest)) return;
       // Re-insert 4 cards later or at the end
       const retryCard = Object.assign({}, this.currentWord, {
         _isRetry: true,

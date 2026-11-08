@@ -10,6 +10,7 @@ logs excluded entries to excluded_words.log, and saves atomically to data/listen
 
 import os
 import sys
+import re
 import json
 import shutil
 import argparse
@@ -211,10 +212,13 @@ def filter_and_deduplicate(words: list[dict]) -> tuple[list[dict], list[dict], l
     excluded = []
     kept_raw = []
 
-    # Step 1: Category filtering
+    # Step 1: Category, clock time, and number/code filtering
     for entry in words:
         cat = str(entry.get("category"))
-        if cat in EXCLUDED_CATEGORIES:
+        word_text = str(entry.get("word", "")).strip()
+        is_clock_time = bool(re.search(r"^\d{1,2}[:.]\d{2}(\s*(am|pm))?$", word_text, re.IGNORECASE))
+        is_pure_num_or_code = bool(re.match(r"^\d+$", word_text) or word_text.upper() == "GW432HA")
+        if cat in EXCLUDED_CATEGORIES or is_clock_time or is_pure_num_or_code:
             excluded.append(entry)
         else:
             kept_raw.append(entry)

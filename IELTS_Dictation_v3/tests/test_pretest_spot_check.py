@@ -616,6 +616,14 @@ class TestPretestSpotCheckServerAPI(unittest.TestCase):
             self.assertIn("熟词日常抽检", content)
             self.assertIn("pretest-banner-card", content)
 
+    def test_07_pretest_no_retry_reinforcement_in_frontend(self):
+        """Verifies that in pretest mode, error retry queue reinforcement is strictly disabled."""
+        req = urllib.request.Request(f"{self.base_url}/")
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
+            content = resp.read().decode("utf-8")
+            self.assertIn("if (!card || card._isPretest) return", content)
+            self.assertIn("摸底测验不进行错词强化", content)
+
 
 if __name__ == "__main__":
     unittest.main()

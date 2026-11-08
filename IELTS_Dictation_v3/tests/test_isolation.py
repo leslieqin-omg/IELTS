@@ -96,15 +96,15 @@ class TestProcessAndProductionIsolation(unittest.TestCase):
         )
 
     def test_02_production_listening_word_count_and_integrity(self):
-        """Verifies production data/listening.json maintains exactly 1,622 unique vocabulary items."""
+        """Verifies production data/listening.json maintains exactly 1,593 unique vocabulary items."""
         with open(PRODUCTION_LISTENING_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         words = data.get("words", {})
         self.assertEqual(
             len(words),
-            1622,
-            f"Expected exactly 1622 words in data/listening.json, found {len(words)}"
+            1593,
+            f"Expected exactly 1593 words in data/listening.json, found {len(words)}"
         )
         # Ensure all items have valid 'word' and non-empty definitions
         for wid, entry in words.items():

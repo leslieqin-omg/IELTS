@@ -5105,6 +5105,7 @@
 
     function scheduleRetryCard(maxAllowedRetries, isTypo) {
       const card = appState.currentWord;
+      if (!card || card._isPretest) return; // 全库摸底测验绝不进行错词强化排队
       const currentRetryCount = card._retryCount || 0;
       if (appState.hasScheduledRetryForCurrent || card._isFiller || currentRetryCount >= maxAllowedRetries) return;
       appState.hasScheduledRetryForCurrent = true;
@@ -5276,6 +5277,7 @@
             card._hasRecordedReview = true;
             await recordBackendReview(target, false, { is_pretest: true });
           }
+          appState.isWordCompleted = true; // 摸底初测不强制重拼，直接标记本词完成，按回车或点击直接进入下一词
         } else if (card._isSpotCheck) {
           if (!card._isFiller) appState.sessionWrong++;
           appState.sessionSpotWrong = (appState.sessionSpotWrong || 0) + 1;
@@ -5295,7 +5297,9 @@
         updateSessionAcc();
       }
 
-      scheduleRetryCard(isTypo ? 1 : 3, isTypo);
+      if (!card._isPretest) {
+        scheduleRetryCard(isTypo ? 1 : 3, isTypo);
+      }
       showLetterDiff(typed, target, { isTypo: isTypo, typoDist: dist, isFiller: !!card._isFiller, isCapitalError: isCapitalError });
       saveDictationSession();
     }
@@ -5463,7 +5467,7 @@
         if (options && options.isCapitalError) {
           targetHtml += '<div class="diff-alert-badge badge-error">⚠️ 首字母需大写（月份/星期/国家国籍等专有名词必须首字母大写）</div>';
         } else if (appState.currentWord && appState.currentWord._isPretest) {
-          targetHtml += '<div class="diff-alert-badge badge-error">❌ 摸底初测拼写有误：已自动规划入【待背生词库】，将在 4~6 题后强化重测！</div>';
+          targetHtml += '<div class="diff-alert-badge badge-error">❌ 摸底初测未拼对：已自动规划入【待背生词库】（摸底测验不进行错词强化）</div>';
         } else if (appState.currentWord && appState.currentWord._isSpotCheck) {
           targetHtml += '<div class="diff-alert-badge badge-error">⚠️ 熟词日常抽检拼写有误：已重新拉回艾宾浩斯复习计划，明天将到期复习！</div>';
         } else if (hasExtra) {
@@ -5527,7 +5531,9 @@
       const typoDist = options && options.typoDist !== undefined ? options.typoDist : 1;
       if (retryHint) {
         retryHint.style.display = 'block';
-        if (options && options.isFiller) {
+        if (appState.currentWord && appState.currentWord._isPretest) {
+          retryHint.innerHTML = '💡 摸底初测不进行错词重测。已自动规划入艾宾浩斯复习计划，按 <strong>回车(Enter)</strong> 或点击下方按钮进入下一词';
+        } else if (options && options.isFiller) {
           retryHint.innerHTML = '⚠️ 拼写有误（间隔练习题，不影响记忆进度）。请在上方正确输入一次继续';
         } else if (isTypo && retryNum >= 1) {
           retryHint.innerHTML = '⚠️ 仅差 ' + typoDist + ' 个字母。本词误触核验已用完，不会再次排队。请在上方正确输入一次继续';
@@ -5541,9 +5547,17 @@
         }
       }
       const btnNext = document.getElementById('btn-next-word');
-      if (btnNext) btnNext.style.display = 'none';
       const submitHintText = document.getElementById('submit-hint-text');
-      if (submitHintText) submitHintText.innerText = '回车(Enter) 提交';
+      if (appState.currentWord && appState.currentWord._isPretest) {
+        if (btnNext) {
+          btnNext.style.display = 'inline-flex';
+          btnNext.innerText = '下一词 ➔ (按Enter)';
+        }
+        if (submitHintText) submitHintText.innerText = '回车(Enter) 下一题';
+      } else {
+        if (btnNext) btnNext.style.display = 'none';
+        if (submitHintText) submitHintText.innerText = '回车(Enter) 提交';
+      }
 
       const input = document.getElementById('typing-input');
       input.focus();
