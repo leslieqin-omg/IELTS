@@ -283,7 +283,7 @@
   }
   window.addEventListener('popstate', () => { fingerprint = ''; scan(); });
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') { fingerprint = ''; scan(); }
+    if (document.visibilityState === 'visible') scan();
   });
   setInterval(() => { scan(); flush(); }, 5000);
   scan();

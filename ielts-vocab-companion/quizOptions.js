@@ -8,9 +8,11 @@ export function meaningKey(value) {
     .replace(/[\p{P}\p{Z}\s]+/gu, '').toLowerCase();
 }
 
-function partsOfSpeech(value = '') {
-  const aliases = { vt: 'v', vi: 'v', verb: 'v', noun: 'n', a: 'adj', adjective: 'adj', adverb: 'adv' };
-  return new Set((String(value).toLowerCase().match(/[a-z]+/g) || [])
+function partsOfSpeech(value = '', meaning = '') {
+  const aliases = { vt: 'v', vi: 'v', verb: 'v', noun: 'n', a: 'adj', adjective: 'adj', adverb: 'adv', phrase: 'phr' };
+  const prefixMatch = String(meaning || '').trim().match(/^(?:(?:adj|adv|vt|vi|prep|pron|conj|num|phr|n|v|a)\s*[.\uFF0E]\s*)+/i);
+  const raw = `${value || ''} ${prefixMatch ? prefixMatch[0] : ''}`;
+  return new Set((raw.toLowerCase().match(/[a-z]+/g) || [])
     .map((part) => aliases[part] || part));
 }
 
@@ -29,15 +31,16 @@ export function buildQuestion(word, allVocabPool, random = Math.random) {
     throw new Error(`请先确认「${word?.word || ''}」的中文篇章释义`);
   }
   if (!Array.isArray(allVocabPool)) throw new Error('测试词库必须是数组');
-  const targetPos = partsOfSpeech(word.pos);
+  const targetPos = partsOfSpeech(word.pos, correct);
   const groups = [[], [], [], []];
   for (const candidate of allVocabPool) {
     if (!candidate || spelling(candidate) === spelling(word) ||
         (word.id && candidate.id === word.id) || !spelling(candidate) ||
         !hasChinese(definition(candidate))) continue;
-    const samePassage = Boolean(word.passageId) && candidate.passageId === word.passageId;
-    const samePos = [...partsOfSpeech(candidate.pos)].some((part) => targetPos.has(part));
-    groups[(samePassage ? 0 : 2) + (samePos ? 0 : 1)].push(candidate);
+    const isCircledRecord = Boolean(candidate.passageId);
+    const candPos = partsOfSpeech(candidate.pos, definition(candidate));
+    const samePos = targetPos.size > 0 && [...candPos].some((part) => targetPos.has(part));
+    groups[(isCircledRecord ? 2 : 0) + (samePos ? 0 : 1)].push(candidate);
   }
   const seen = new Set([meaningKey(correct)]);
   const distractors = [];
@@ -61,7 +64,7 @@ export function buildQuestion(word, allVocabPool, random = Math.random) {
 export function generateQuizOptions(target, pool, fallback = [], random = Math.random) {
   const passageId = target.passageId || 'local-pool';
   return buildQuestion({ ...target, passageId }, [
-    ...pool.map((word) => word ? { ...word, passageId: word.passageId || passageId } : word),
+    ...pool,
     ...fallback
   ], random).options;
 }

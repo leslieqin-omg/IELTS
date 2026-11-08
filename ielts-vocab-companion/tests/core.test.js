@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
-import { addWord, applySync, emptyData, ensurePassage, migrateLegacy, normalizeSync, schedule, validateData } from '../model.js';
-import { answerQuiz, buildQuestion, generateQuizOptions, nextQuiz, reviewLearning, shuffle, startLearning, startQuiz } from '../quiz.js';
+import { addWord, applySync, daysUntilReview, emptyData, ensurePassage, isWordDueToday, migrateLegacy, normalizeSync, rescheduleBacklog, schedule, validateData } from '../model.js';
+import { answerQuiz, buildQuestion, forgetQuizWord, generateQuizOptions, nextQuiz, reviewLearning, shuffle, startLearning, startQuiz } from '../quiz.js';
 import { meaningKey } from '../quizOptions.js';
 import { normalizeEntry } from '../dictionary.js';
 
@@ -63,19 +63,26 @@ test('legacy tasks migrate without losing sentences or known-word progress', () 
   assert.equal(data.settings.activePassageId, 'tea');
 });
 
-test('SM-2-style schedule resets on wrong and increases correct intervals', () => {
+test('Ebbinghaus day-based schedule resets to 1 day on wrong and follows 1-2-4-7-15-30 day intervals', () => {
   const { first } = fixture();
   schedule(first, true, 1000);
   assert.equal(first.intervalDays, 1);
   schedule(first, true, 2000);
   assert.equal(first.status, 'mastered');
-  assert.equal(first.intervalDays, 3);
+  assert.equal(first.intervalDays, 2);
   schedule(first, true, 3000);
-  assert.ok(first.intervalDays >= 7);
+  assert.equal(first.intervalDays, 4);
+  schedule(first, true, 4000);
+  assert.equal(first.intervalDays, 7);
+  schedule(first, true, 5000);
+  assert.equal(first.intervalDays, 15);
+  schedule(first, true, 6000);
+  assert.equal(first.intervalDays, 30);
   schedule(first, false, 4000);
   assert.equal(first.status, 'learning');
   assert.equal(first.streak, 0);
-  assert.equal(first.nextReviewAt, 604000);
+  assert.equal(first.intervalDays, 1);
+  assert.equal(first.nextReviewAt, 4000 + 86400000);
 });
 
 test('options use exactly one target definition and three unique other definitions', () => {
@@ -153,13 +160,15 @@ test('wrong and unsure append retry until correct; feedback is immutable and sco
   validateData(data);
 });
 
-test('buildQuestion prioritizes same-passage same-POS words, including unselected distractors', () => {
+test('buildQuestion and startQuiz prioritize random same-POS dictionary words and exclude circled words', () => {
   const { data, first } = fixture();
-  const local = fallback.slice(0, 3).map((w) => addWord(data, first.passageId, w));
+  const circledOther = addWord(data, first.passageId, { word: 'palace', contextMeaning: 'n. 王宫', pos: 'n.' });
   const question = buildQuestion(first, [...fallback, ...Object.values(data.vocabRecords)], () => 0.3);
-  assert.deepEqual(new Set(question.options), new Set([first.contextMeaning, ...local.map((w) => w.contextMeaning)]));
+  assert.ok(!question.options.includes(circledOther.contextMeaning));
+  assert.deepEqual(new Set(question.options), new Set([first.contextMeaning, ...fallback.slice(0, 3).map((w) => w.contextMeaning)]));
   assert.equal(question.options[question.correctIndex], first.contextMeaning);
-  startQuiz(data, [first], [...local, ...fallback]);
+  startQuiz(data, [first], [...Object.values(data.vocabRecords), ...fallback]);
+  assert.ok(!data.quizSession.queue[0].options.includes(circledOther.contextMeaning));
   assert.deepEqual(data.quizSession.words.map((w) => w.id), [first.id]);
   assert.ok(data.quizSession.queue.every((q) => q.wordId === first.id));
 });
@@ -403,6 +412,91 @@ test('a completed quiz does not pin subsequent live reading to the old passage',
   nextQuiz(data);
   applySync(data, normalizeSync({ id: 'after-quiz', payload: { examId: 'Cam20-T1-P1' } }));
   assert.equal(data.settings.activePassageId, 'Cam20-T1-P1');
+});
+
+test('forgetQuizWord moves word to review module and prevents it from reappearing in quiz', () => {
+  const { data, first, second } = fixture();
+  schedule(first, true, 500);
+  schedule(first, true, 600);
+  assert.equal(first.status, 'mastered');
+  startQuiz(data, [first, second], fallback);
+  const forgotten = forgetQuizWord(data, 5000);
+  assert.equal(forgotten.id, first.id);
+  assert.equal(data.vocabRecords[first.id].status, 'learning');
+  assert.equal(data.vocabRecords[first.id].nextReviewAt, 5000);
+  assert.equal(data.quizSession.index, 1);
+  assert.equal(data.quizSession.queue.length, 2);
+  assert.ok(!data.quizSession.queue.slice(1).some((item) => item.wordId === first.id));
+  validateData(data);
+  // Fail the second word, then click "forget" while feedback is displayed
+  answerQuiz(data, null, 6000);
+  const forgottenAfterFeedback = forgetQuizWord(data, 7000);
+  assert.equal(forgottenAfterFeedback.id, second.id);
+  assert.equal(data.vocabRecords[second.id].status, 'learning');
+  assert.equal(data.vocabRecords[second.id].nextReviewAt, 7000);
+  assert.equal(data.quizSession.completed, true);
+  assert.deepEqual(new Set(data.quizHistory[0].wrongWordIds), new Set([first.id, second.id]));
+  validateData(data);
+});
+
+test('rescheduleBacklog only postpones studied passages and never postpones newly circled unstudied passages', () => {
+  const { data, first, second, unrelated } = fixture();
+  const thirdPassageWord = addWord(data, 'Cam18-T1-P3', { word: 'glacier', contextMeaning: 'n. 冰川', pos: 'n.' });
+  const unstudiedPassageWord = addWord(data, 'Cam18-T2-P1', { word: 'artifact', contextMeaning: 'n. 文物', pos: 'n.' });
+  const studiedTime = new Date('2026-11-01T12:00:00+08:00').getTime();
+  // Mark Cam18-T1-P1, Cam18-T1-P2, Cam18-T1-P3 as studied so they are due on 2026-11-03, while Cam18-T2-P1 stays unstudied ('new')
+  schedule(first, true, studiedTime);
+  schedule(second, true, studiedTime);
+  schedule(unrelated, true, studiedTime);
+  schedule(thirdPassageWord, true, studiedTime);
+
+  const now = new Date('2026-11-03T12:00:00+08:00').getTime();
+  assert.equal(isWordDueToday(first, now), true);
+  assert.equal(isWordDueToday(unrelated, now), true);
+  assert.equal(isWordDueToday(thirdPassageWord, now), true);
+  assert.equal(isWordDueToday(unstudiedPassageWord, now), true);
+
+  // Attempting to snooze an unstudied newly-circled passage must fail
+  assert.throws(() => rescheduleBacklog(data, { days: 1, passageId: 'Cam18-T2-P1' }, now), /新圈词/);
+
+  // Keep 1 studied passage today, spread remaining 2 studied passages across next 5 days; unstudied passage stays untouched
+  const res = rescheduleBacklog(data, { days: 5, keepTodayPassages: 1 }, now);
+  assert.equal(res.keptPassages, 1);
+  assert.equal(res.postponedPassages, 2);
+  const studiedDueAfterKeepOne = [first, unrelated, thirdPassageWord].filter((w) => isWordDueToday(w, now));
+  assert.equal(studiedDueAfterKeepOne.length, 1);
+  assert.equal(isWordDueToday(unstudiedPassageWord, now), true);
+
+  // Snooze the remaining studied due passage by 1 day
+  const remainingPassageId = studiedDueAfterKeepOne[0].passageId;
+  const snoozeRes = rescheduleBacklog(data, { days: 1, passageId: remainingPassageId }, now);
+  assert.equal(snoozeRes.postponedPassages, 1);
+  assert.equal(isWordDueToday(first, now), false);
+  assert.equal(isWordDueToday(second, now), false);
+  assert.equal(isWordDueToday(unrelated, now), false);
+  assert.equal(isWordDueToday(thirdPassageWord, now), false);
+  assert.equal(isWordDueToday(unstudiedPassageWord, now), true);
+  assert.ok(daysUntilReview(first, now) >= 1);
+  validateData(data);
+});
+
+test('multi-passage quiz combines words across selected passages and updates each passage independently', () => {
+  const { data, first, second, unrelated } = fixture();
+  startQuiz(data, [first, second, unrelated], fallback, Math.random, { allowMultiplePassages: true });
+  assert.deepEqual(data.quizSession.passageIds, ['Cam18-T1-P1', 'Cam18-T1-P2']);
+  assert.equal(data.quizSession.words.length, 3);
+  validateData(data);
+
+  for (let i = 0; i < 3; i++) {
+    const item = data.quizSession.queue[data.quizSession.index];
+    answerQuiz(data, item.correctIndex, 1000 + i * 1000);
+    nextQuiz(data, 1500 + i * 1000);
+    validateData(data);
+  }
+  assert.equal(data.quizSession.completed, true);
+  assert.deepEqual(data.quizHistory[0].passageIds, ['Cam18-T1-P1', 'Cam18-T1-P2']);
+  assert.equal(data.quizHistory[0].accuracy, 1);
+  validateData(data);
 });
 
 test('demo exam is valid and has readable passage blocks', async () => {

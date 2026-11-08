@@ -9,10 +9,11 @@ export class Bridge {
     this.onStatus = onStatus;
     this.cursor = 0;
     this.stopped = false;
+    this.baseUrl = '';
   }
 
   async api(path, options = {}) {
-    const response = await fetch(path, {
+    const response = await fetch(`${this.baseUrl}${path}`, {
       ...options, headers: { ...options.headers, Authorization: `Bearer ${this.config.token}` },
       signal: AbortSignal.timeout(5000)
     });
@@ -21,11 +22,18 @@ export class Bridge {
   }
 
   async connect() {
-    try {
-      const response = await fetch('/api/config', { signal: AbortSignal.timeout(1500) });
-      if (!response.ok) throw new Error();
-      this.config = await response.json();
-    } catch { this.onStatus('同源模式；跨端口请使用 npm start'); }
+    const candidates = [''];
+    if (location.port !== '47832') candidates.push('http://127.0.0.1:47832');
+    for (const base of candidates) {
+      try {
+        const response = await fetch(`${base}/api/config`, { signal: AbortSignal.timeout(1200) });
+        if (!response.ok) continue;
+        this.config = await response.json();
+        this.baseUrl = base;
+        break;
+      } catch { /* Fall through to next candidate */ }
+    }
+    if (!this.config) this.onStatus('同源实时同步已就绪（BroadcastChannel / IndexedDB）');
     return this.config ? {
       load: () => this.api('/api/state'),
       save: (state, expectedRevision) => this.api('/api/state', {
@@ -72,7 +80,7 @@ export class Bridge {
             this.cursor = item.seq;
           }
           this.onStatus(result.lastSeen && Date.now() - result.lastSeen < 15000 ?
-            'Chrome 桥接在线' : '本地服务在线，等待 Chrome 阅读页面');
+            'Chrome 桥接在线' : '本地服务在线，等待阅读页面同步');
         } catch (error) { this.onStatus(`同步中断，将自动重连：${error.message}`); }
       }
       this.timer = setTimeout(poll, 1500);
@@ -87,19 +95,64 @@ export class Bridge {
     window.removeEventListener('storage', this.storageHandler);
   }
 
+  async loadManifest() {
+    if (globalThis.__READING_EXAM_MANIFEST__) return globalThis.__READING_EXAM_MANIFEST__;
+    const paths = this.config && !this.baseUrl
+      ? ['/practice/assets/generated/reading-exams/manifest.js', '../assets/generated/reading-exams/manifest.js']
+      : ['../assets/generated/reading-exams/manifest.js', '/assets/generated/reading-exams/manifest.js', '/practice/assets/generated/reading-exams/manifest.js'];
+    for (const src of paths) {
+      const ok = await new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = () => resolve(true);
+        script.onerror = () => { script.remove(); resolve(false); };
+        document.head.append(script);
+      });
+      if (ok && globalThis.__READING_EXAM_MANIFEST__) return globalThis.__READING_EXAM_MANIFEST__;
+    }
+    return null;
+  }
+
   async loadExam(id) {
     if (!/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error('篇章 ID 无效');
-    const registry = globalThis.__READING_EXAM_DATA__ ||= {
-      exams: {}, register(key, data) { this.exams[key] = data; }, get(key) { return this.exams[key]; }
-    };
+    if (!globalThis.__READING_EXAM_DATA__ || typeof globalThis.__READING_EXAM_DATA__.register !== 'function') {
+      const exams = {};
+      globalThis.__READING_EXAM_DATA__ = {
+        exams,
+        register(key, data) { exams[key] = data; },
+        get(key) { return exams[key]; }
+      };
+    } else if (!globalThis.__READING_EXAM_DATA__.get) {
+      globalThis.__READING_EXAM_DATA__.exams ||= {};
+      const origRegister = globalThis.__READING_EXAM_DATA__.register;
+      globalThis.__READING_EXAM_DATA__.register = function(key, data) {
+        globalThis.__READING_EXAM_DATA__.exams[key] = data;
+        if (typeof origRegister === 'function') origRegister.call(this, key, data);
+      };
+      globalThis.__READING_EXAM_DATA__.get = function(key) {
+        return globalThis.__READING_EXAM_DATA__.exams[key];
+      };
+    }
+    const registry = globalThis.__READING_EXAM_DATA__;
     if (registry.get(id)) return registry.get(id);
-    const paths = [this.config ? `/practice/assets/generated/reading-exams/${id}.js` :
-      `../IELTS-practice/assets/generated/reading-exams/${id}.js`, `./assets/demo-exams/${id}.js`];
+    const paths = this.config && !this.baseUrl
+      ? [
+          `./assets/demo-exams/${id}.js`,
+          `/practice/assets/generated/reading-exams/${id}.js`,
+          `../assets/generated/reading-exams/${id}.js`
+        ]
+      : [
+          `../assets/generated/reading-exams/${id}.js`,
+          `/assets/generated/reading-exams/${id}.js`,
+          `./assets/demo-exams/${id}.js`,
+          `/practice/assets/generated/reading-exams/${id}.js`,
+          `/IELTS-practice/assets/generated/reading-exams/${id}.js`
+        ];
     for (const path of paths) {
       const ok = await new Promise((resolve) => {
         const script = document.createElement('script');
         script.src = path;
-        script.onload = () => { script.remove(); resolve(true); };
+        script.onload = () => { resolve(true); };
         script.onerror = () => { script.remove(); resolve(false); };
         document.head.append(script);
       });

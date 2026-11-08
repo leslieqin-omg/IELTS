@@ -5,25 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f3f1eb">
   <title>IELTS Vocab Companion · 阅读伴侣</title>
-  <link rel="stylesheet" href="./app.css">
+  <link rel="stylesheet" href="./app.css?v=20261103e">
 </head>
 <body>
   <header class="toolbar">
     <a class="brand" href="./" aria-label="阅读伴侣首页"><span class="brand-mark">vc.</span><span>阅读伴侣<small>IELTS VOCAB COMPANION</small></span></a>
     <button id="settings-open" type="button" title="设置与备份">设置与备份</button>
   </header>
-  <div class="statusbar">
-    <span id="bridge-status">正在连接本地服务</span>
-    <span id="storage-status">正在水合已有记录，暂不写入</span>
-  </div>
   <main id="app" aria-busy="true">
-    <p id="detected-passage" class="notice detected-passage" role="status" aria-live="polite" hidden></p>
     <section class="passage-heading">
-      <p class="eyebrow">READ. RECALL. REMEMBER.</p>
-      <div class="heading-row"><h1 id="passage-title">正在恢复阅读进度</h1><span id="mastery" class="stat">0%</span></div>
+      <div class="passage-select-bar">
+        <label class="select-label" for="passage-picker-trigger">篇章历史 / 快捷切换 <span id="passage-circled-summary" class="muted" style="font-weight: 400; margin-left: 6px;"></span></label>
+        <div id="passage-picker" class="passage-picker">
+          <button type="button" id="passage-picker-trigger" class="passage-picker-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
+          <div id="passage-picker-menu" class="passage-picker-menu" role="listbox" hidden></div>
+        </div>
+        <select id="passage-select" hidden disabled></select>
+      </div>
+      <div class="heading-row"><h1 id="passage-title">雅思阅读真题生词伴侣</h1><span id="mastery" class="stat">0%</span></div>
       <p id="passage-meta" class="muted"></p>
-      <label class="select-label" for="passage-select">篇章历史 / 快捷切换</label>
-      <select id="passage-select" disabled></select>
       <details id="manual-switch">
         <summary>手动关联篇章</summary>
         <form id="passage-form" class="grouped-form">
@@ -38,59 +38,109 @@
       <button data-view="extract" aria-current="page">圈词</button>
       <button data-view="learn">背词</button>
       <button data-view="quiz">测试</button>
+      <button data-view="review">复习 <span id="review-due-badge" class="nav-badge" hidden>0</span></button>
       <button data-view="history">记录</button>
     </nav>
     <p id="session-notice" class="notice" hidden></p>
+    <section id="view-review" class="view" hidden>
+      <div class="review-overview">
+        <div class="section-heading">
+          <div>
+            <h2>艾宾浩斯按篇复习</h2>
+            <p class="hint" style="margin: 4px 0 0;">复习周期：<strong>1天 → 2天 → 4天 → 7天 → 15天 → 30天</strong>（按自然日推进，无分钟级短间隔；答错重置为 1 天后复习）</p>
+          </div>
+          <div class="inline-actions" style="margin-top: 0;">
+            <button type="button" id="review-filter-all" class="primary">全部已圈词篇章</button>
+            <button type="button" id="review-filter-due">仅看今日待复习</button>
+          </div>
+        </div>
+        <div id="review-stats" class="review-stats-row"></div>
+        <div id="backlog-banner" class="backlog-banner" hidden></div>
+        <div id="multi-quiz-bar" class="multi-quiz-bar" hidden></div>
+      </div>
+      <div id="review-passage-list" class="review-passage-list"></div>
+    </section>
     <section id="view-extract" class="view">
       <div class="reading-layout">
         <article class="reader">
-          <div class="section-heading"><h2>阅读原文</h2><span class="muted">点词查询 · 保留真实语境</span></div>
+          <div class="section-heading">
+            <h2>阅读原文</h2>
+            <div class="reader-toolbar">
+              <span class="muted">点词或划选短语（2–6词）</span>
+              <div class="font-size-controls" role="group" aria-label="原文正文字号调节">
+                <button type="button" id="font-dec" class="font-btn" title="减小字号">A-</button>
+                <span id="font-size-label" class="font-size-label">18px</span>
+                <button type="button" id="font-inc" class="font-btn" title="增大字号">A+</button>
+                <button type="button" id="font-reset" class="font-btn" title="恢复默认字号">默认</button>
+              </div>
+            </div>
+          </div>
           <div id="passage-content" class="passage-content"></div>
           <details><summary>本篇阅读错题 <span id="wrong-count">0</span></summary><div id="wrong-questions"></div></details>
         </article>
         <aside class="vocab-panel" aria-label="本篇生词本">
+          <div id="inline-editor-card" class="inline-editor-card" hidden>
+            <div class="section-heading">
+              <h3 id="inline-editor-title">生词 / 短语收录</h3>
+              <div class="inline-actions" style="margin-top: 0;">
+                <button type="button" id="inline-ai-translate" class="small">✨ AI 语境翻译</button>
+                <button type="button" id="inline-editor-close" class="small">收起</button>
+              </div>
+            </div>
+            <form id="inline-word-form" class="grouped-form">
+              <label>生词 / 短语<input id="inline-edit-word" required maxlength="100"></label>
+              <div class="inline-row">
+                <input id="inline-edit-phonetic" placeholder="音标" maxlength="200">
+                <input id="inline-edit-pos" placeholder="词性 (n./v./phr.)" maxlength="100">
+              </div>
+              <label>该词/短语在本篇的中文释义<textarea id="inline-edit-meaning" rows="2" maxlength="2000" required placeholder="请输入或确认中文释义"></textarea></label>
+              <label>原文例句<textarea id="inline-edit-sentence" rows="2" maxlength="10000"></textarea></label>
+              <p id="inline-dict-reference" class="hint"></p>
+              <button class="primary" type="submit" style="width: 100%;">确认收录到生词本</button>
+            </form>
+          </div>
           <div class="section-heading"><h2>本篇词汇 <span id="word-count">0</span></h2><button id="add-open">添加</button></div>
           <form id="capture-form">
             <label for="capture-text">粘贴生词、短语或原句</label>
-            <textarea id="capture-text" rows="2" maxlength="10000" placeholder="例如：infused 或含生词的原句"></textarea>
+            <textarea id="capture-text" rows="2" maxlength="10000" placeholder="例如：infused、take into account 或含生词的原句"></textarea>
             <div class="inline-actions"><button type="submit">识别并收录</button><button id="clipboard-import" type="button">读取剪贴板</button></div>
           </form>
           <div class="section-heading small"><label><input type="checkbox" id="select-all"> 全选</label><button id="select-due">选择到期词</button></div>
           <div id="vocab-list" class="vocab-list"></div>
           <div class="actions"><button id="start-learn" class="primary" disabled>背诵选中词</button><button id="start-selected-quiz" disabled>测试选中词</button></div>
-          <p class="hint">题干仅来自勾选词；释义可点“编辑”确认本篇用法。</p>
-          <details id="passage-resources" open>
-            <summary>本篇核心词汇 <span id="core-count">0</span> · 同义替换参考</summary>
-            <p id="core-status" class="hint"></p>
-            <div id="core-list" class="resource-list"></div>
-            <h3>同义替换参考</h3>
-            <p id="synonym-status" class="hint"></p>
-            <div id="synonym-list" class="resource-list"></div>
-          </details>
+          <p class="hint">支持在左侧原文单击单词或鼠标拖拽划选短语（最多 6 个词）；释义可结合 AI 语境确认。</p>
         </aside>
       </div>
     </section>
     <section id="view-learn" class="view" hidden>
-      <div class="session-heading"><span id="learn-label">暂无学习批次</span><button id="leave-session">退出批次</button></div>
+      <div class="session-heading">
+        <span id="learn-label">暂无学习批次</span>
+        <div class="inline-actions" style="margin-top: 0;">
+          <button id="skip-to-quiz" type="button" hidden>直接进入测试</button>
+          <button id="leave-session" type="button">退出批次</button>
+        </div>
+      </div>
       <progress id="learn-progress" value="0" max="1" aria-label="背词进度"></progress>
       <div id="learn-card" class="word-stage"></div>
-      <div id="learn-controls" class="actions">
-        <button id="reveal" class="wide">显示释义与例句 <kbd>Space</kbd></button>
-        <button id="unknown">需重背 <kbd>← / 1</kbd></button>
-        <button id="known" class="primary">记住了 <kbd>→ / 2</kbd></button>
+      <div id="learn-controls" class="actions" hidden>
+        <button id="prev-word" type="button">上一个 <kbd>←</kbd></button>
+        <button id="reveal" type="button">显示释义 <kbd>Space</kbd></button>
+        <button id="unknown" type="button">没会 / 生疏 <kbd>↑ / 2</kbd></button>
+        <button id="known" class="primary" type="button">会了 / 记住 <kbd>↓ / 1</kbd></button>
+        <button id="next-word" type="button">下一个 <kbd>→</kbd></button>
       </div>
-      <button id="batch-quiz" class="primary wide" hidden>测试刚刚学完的这批词</button>
+      <button id="batch-quiz" class="primary wide" hidden>测试本批</button>
     </section>
     <section id="view-quiz" class="view" hidden>
       <div class="session-heading"><span id="quiz-label">尚未开始测试</span><button id="quit-quiz">退出测试</button></div>
       <div id="quiz-passage-wrapper" class="quiz-passage-wrapper" hidden>
         <div class="section-heading"><h3>篇章原文 · 上下文圈词定位</h3><span class="muted">当前测试词在原文中以亮色高光凸显</span></div>
-        <div id="quiz-passage-content" class="passage-content quiz-passage-content"></div>
+        <div id="quiz-passage-content" class="quiz-passage-content" style="min-height: 0; height: auto;"></div>
       </div>
-      <div id="quiz-content" class="word-stage"></div>
+      <div id="quiz-content" class="word-stage" hidden></div>
       <div id="quiz-options" class="quiz-options"></div>
       <div id="quiz-feedback" class="feedback" aria-live="polite"></div>
-      <div class="actions"><button id="unsure">不确定，加入重测</button><button id="next-question" class="primary" disabled>下一题 <kbd>Enter</kbd></button></div>
+      <div class="actions"><button id="forget-word" type="button">忘记了（移入复习）</button><button id="unsure" type="button">不确定，加入重测</button><button id="next-question" class="primary" disabled>下一题 <kbd>Enter</kbd></button></div>
     </section>
     <section id="view-history" class="view" hidden>
       <div class="section-heading"><h2>学习记录</h2><span class="muted">首答成绩与错词回顾</span></div>
@@ -103,11 +153,14 @@
       <div class="section-heading"><h2 id="word-dialog-title">篇章词义</h2><button type="button" data-close="word-dialog" aria-label="关闭词条编辑">关闭</button></div>
       <p id="word-passage" class="muted"></p>
       <label>英文单词 / 短语<input id="edit-word" required maxlength="100" pattern="[a-zA-Z][a-zA-Z '\-]*"></label>
-      <button id="lookup" type="button">查询离线词典</button>
+      <div class="inline-actions" style="margin-top: 0;">
+        <button id="lookup" type="button">查询离线词典</button>
+        <button id="ai-lookup" type="button">✨ AI 语境翻译</button>
+      </div>
       <label>音标<input id="edit-phonetic" maxlength="200"></label>
-      <label>词性<input id="edit-pos" maxlength="100" placeholder="n. / v. / adj."></label>
+      <label>词性<input id="edit-pos" maxlength="100" placeholder="n. / v. / adj. / phr."></label>
       <p id="dictionary-reference" class="hint"></p>
-      <label>确认该词在本篇的中文释义<textarea id="edit-meaning" rows="2" maxlength="2000" required></textarea></label>
+      <label>确认该词/短语在本篇的中文释义<textarea id="edit-meaning" rows="2" maxlength="2000" required></textarea></label>
       <label>阅读原文例句<textarea id="edit-sentence" rows="3" maxlength="10000"></textarea></label>
       <label>同义替换词（逗号分隔）<input id="edit-synonyms" maxlength="2000"></label>
       <button class="primary" type="submit">确认语境释义并保存</button>
@@ -118,9 +171,19 @@
     <div class="setting-group">
       <label class="check-row"><input id="auto-sync" type="checkbox"> 自动接收并追踪阅读篇章</label>
       <label class="check-row"><input id="capture-enabled" type="checkbox"> 监听阅读划词 / 剪贴板导入</label>
-      <p class="hint">Chrome 中点击生词、划选及复制由 Userscript 捕获，脚本菜单也需开启捕获。原句随词推送；网页无法静默读取后台剪贴板，亦可手动粘贴。</p>
+      <p class="hint">同源练习页面自动实时同步；如跨端口或使用外部站点，也可安装 Userscript 捕获划词与复制。</p>
       <a id="install-script" href="./bridge.user.js" target="_blank" rel="noopener">安装 Chrome 桥接 Userscript</a>
-      <p class="hint">需要 Tampermonkey。请从此链接安装以携带本机配对令牌；HTTPS 阅读页通过 GM 请求连接，不依赖跨域数据库权限。</p>
+    </div>
+    <div class="setting-group">
+      <h3>✨ AI 语境翻译（手动按需触发）</h3>
+      <p class="hint">圈词默认优先使用本地离线词典；当您觉得离线释义不贴合本篇语境时，点击词卡上的「✨ AI 语境翻译」即可结合原句翻译。默认已内置免费通道，也可配置自定义大模型 API：</p>
+      <div class="grouped-form">
+        <label>自定义 API 地址（可选，留空使用内置免费通道）<input id="ai-endpoint" placeholder="例如 https://api.deepseek.com/v1"></label>
+        <div class="inline-row">
+          <input id="ai-key" type="password" placeholder="API Key（可选）">
+          <input id="ai-model" placeholder="模型名（如 deepseek-chat）">
+        </div>
+      </div>
     </div>
     <div class="setting-group">
       <h3>本地备份</h3><p id="disk-path" class="hint">静态模式仅保存到当前浏览器。</p>
@@ -129,9 +192,9 @@
     </div>
     <div class="setting-group">
       <h3>键盘操作</h3>
-      <p class="hint">背词：Space 揭示，← / 1 生疏，→ / 2 记住。测试：1–4 选择，Enter 下一题。输入框、对话框、组合键和中文输入期间不会触发学习快捷键。</p>
+      <p class="hint">背词：Space 显示/隐藏释义，↓ / 1 会了（移出本轮待背），↑ / 2 没会（标记生疏并显示释义），← / → 前后切换单词。测试：1–4 选择，5 忘记了（移入复习），Enter 下一题。输入框、对话框、组合键和中文输入期间不会触发学习快捷键。</p>
     </div>
   </dialog>
-  <script type="module" src="./app.js"></script>
+  <script type="module" src="./app.js?v=20261103e"></script>
 </body>
 </html>

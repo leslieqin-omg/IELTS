@@ -1,10 +1,68 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { IDBFactory } from 'fake-indexeddb';
 import { addWord, emptyData, LEGACY_KEY, schedule, validateData } from '../model.js';
 import { startQuiz, answerQuiz } from '../quiz.js';
 import { STORAGE_KEY, StorageManager } from '../store.js';
 import { RECOVERY_KEY, StorageService } from '../storageService.js';
+
+let IDBFactory;
+try {
+  ({ IDBFactory } = await import('fake-indexeddb'));
+} catch {
+  IDBFactory = class FallbackIDBFactory {
+    constructor() { this.databases = new Map(); }
+    open(name) {
+      const req = { result: null, onupgradeneeded: null, onsuccess: null, onerror: null, onblocked: null };
+      queueMicrotask(() => {
+        const isNew = !this.databases.has(name);
+        if (isNew) this.databases.set(name, new Map());
+        const stores = this.databases.get(name);
+        const db = {
+          createObjectStore(storeName) {
+            if (!stores.has(storeName)) stores.set(storeName, new Map());
+          },
+          transaction(storeName) {
+            let aborted = false;
+            const tx = {
+              oncomplete: null,
+              onabort: null,
+              onerror: null,
+              abort() {
+                aborted = true;
+                queueMicrotask(() => tx.onabort?.());
+              },
+              objectStore(sName) {
+                const map = stores.get(sName) || new Map();
+                return {
+                  get(key) {
+                    const r = { result: undefined, onsuccess: null, onerror: null };
+                    queueMicrotask(() => {
+                      if (aborted) return;
+                      r.result = map.has(key) ? structuredClone(map.get(key)) : undefined;
+                      r.onsuccess?.();
+                      queueMicrotask(() => { if (!aborted) tx.oncomplete?.(); });
+                    });
+                    return r;
+                  },
+                  put(val, key) {
+                    if (!aborted) map.set(key, structuredClone(val));
+                    queueMicrotask(() => { if (!aborted) tx.oncomplete?.(); });
+                  }
+                };
+              }
+            };
+            return tx;
+          },
+          close() {}
+        };
+        req.result = db;
+        if (isNew) req.onupgradeneeded?.();
+        req.onsuccess?.();
+      });
+      return req;
+    }
+  };
+}
 
 class MemoryStorage {
   constructor() { this.values = new Map(); this.writes = 0; }

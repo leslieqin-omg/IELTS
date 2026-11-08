@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { existsSync } from 'node:fs';
 import { readFile, writeFile, mkdir, rename, stat, realpath } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
@@ -7,6 +8,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { normalizeSync, validateData } from './model.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
+const DEFAULT_PRACTICE_DIR = existsSync(path.resolve(ROOT, '../assets/generated/reading-exams'))
+  ? path.resolve(ROOT, '..')
+  : path.join(ROOT, '../IELTS-practice');
 const MAX_BODY = 32 * 1024 * 1024;
 const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript',
   '.json': 'application/json', '.md': 'text/plain' };
@@ -37,7 +41,7 @@ async function bodyJSON(request) {
 
 export async function createServer({ dataDir = process.env.IELTS_DATA_DIR ||
   path.join(homedir(), '.ielts-vocab-companion'),
-  practiceDir = process.env.IELTS_PRACTICE_DIR || path.join(ROOT, '../IELTS-practice') } = {}) {
+  practiceDir = process.env.IELTS_PRACTICE_DIR || DEFAULT_PRACTICE_DIR } = {}) {
   await mkdir(dataDir, { recursive: true, mode: 0o700 });
   const tokenFile = path.join(dataDir, '.bridge-token');
   let token;
@@ -69,31 +73,26 @@ export async function createServer({ dataDir = process.env.IELTS_DATA_DIR ||
       if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host)) throw httpError(403, '仅限本机访问');
       const base = `http://${host}`;
       const url = new URL(request.url, base);
-      if (request.method === 'OPTIONS') {
-        response.setHeader('Access-Control-Allow-Origin', '*');
-        response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      const origin = request.headers.origin;
+      const isLocalOrigin = !origin || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+      if (origin && !isLocalOrigin) throw httpError(403, '不允许的来源');
+      if (request.headers['sec-fetch-site'] === 'cross-site') throw httpError(403, '拒绝跨站请求');
+      if (origin && isLocalOrigin) {
+        response.setHeader('Access-Control-Allow-Origin', origin);
+        response.setHeader('Access-Control-Allow-Methods', 'GET, PUT, POST, OPTIONS');
         response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      }
+      if (request.method === 'OPTIONS') {
         response.writeHead(204);
         return response.end();
-      }
-      response.setHeader('Access-Control-Allow-Origin', '*');
-      response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-      if (request.headers.origin && request.headers.origin !== base && url.pathname !== '/api/sync') {
-        if (!/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(request.headers.origin)) {
-          throw httpError(403, '不允许的来源');
-        }
-      }
-      if (request.headers['sec-fetch-site'] === 'cross-site' && url.pathname !== '/api/sync') {
-        throw httpError(403, '拒绝跨站请求');
       }
       if (url.pathname === '/api/config' && request.method === 'GET') {
         return json(response, 200, { token, dataFile: stateFile });
       }
       if (url.pathname.startsWith('/api/')) {
-        if (url.pathname === '/api/sync' && !token) {
-          // allow local sync if token not set
-        } else if (token && request.headers.authorization !== `Bearer ${token}`) throw httpError(401, '同步令牌无效');
+        const hasValidToken = request.headers.authorization === `Bearer ${token}`;
+        const allowLocalSync = url.pathname === '/api/sync' && Boolean(origin) && isLocalOrigin;
+        if (!hasValidToken && !allowLocalSync) throw httpError(401, '同步令牌无效');
         if (url.pathname === '/api/state' && request.method === 'GET') {
           const data = await readJSON(stateFile, null);
           return json(response, 200, data ? validateData(data) : null);
@@ -159,7 +158,7 @@ export async function createServer({ dataDir = process.env.IELTS_DATA_DIR ||
       }
       const practice = url.pathname.startsWith('/practice/');
       const relative = decodeURIComponent(practice ? url.pathname.slice('/practice/'.length) : url.pathname.slice(1));
-      if (practice && !/^assets\/generated\/reading-exams\/[a-zA-Z0-9_-]+\.js$/.test(relative)) {
+      if (practice && !/^(assets\/generated\/reading-exams\/[a-zA-Z0-9_-]+\.js|assets\/wordlists\/ecdict_reading\.bundle\.js)$/.test(relative)) {
         throw httpError(403, '仅开放阅读题库资源');
       }
       const root = practice ? practiceDir : ROOT;
@@ -172,7 +171,7 @@ export async function createServer({ dataDir = process.env.IELTS_DATA_DIR ||
       if (!real.startsWith(`${await realpath(root)}${path.sep}`)) throw httpError(403, '路径不可访问');
       if (!(await stat(real)).isFile()) throw httpError(404, '资源不存在');
       response.setHeader('Content-Security-Policy',
-        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; connect-src 'self' http://127.0.0.1:47832 http://localhost:47832 https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
       response.writeHead(200, { 'Content-Type': `${MIME[path.extname(real)] || 'application/octet-stream'}; charset=utf-8` });
       response.end(request.method === 'HEAD' ? undefined : await readFile(real));
     } catch (error) {

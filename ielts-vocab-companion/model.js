@@ -77,6 +77,97 @@ export function recalculate(data, passageId) {
   passage.masteryRate = words.length ? words.filter((w) => w.status === 'mastered').length / words.length : 0;
 }
 
+export const EBBINGHAUS_DAYS = [1, 2, 4, 7, 15, 30];
+
+export function startOfDay(ts = Date.now()) {
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+export function endOfDay(ts = Date.now()) {
+  const d = new Date(ts);
+  d.setHours(23, 59, 59, 999);
+  return d.getTime();
+}
+
+export function isWordStudied(w) {
+  return Boolean(w && w.status !== 'new' && Number(w.lastStudiedAt) > 0);
+}
+
+export function isWordDueToday(w, now = Date.now()) {
+  if (!w) return false;
+  if (!isWordStudied(w)) return true;
+  if (w.nextReviewAt && w.nextReviewAt > endOfDay(now)) return false;
+  if (w.status === 'learning' || !w.nextReviewAt) return true;
+  return w.nextReviewAt <= endOfDay(now);
+}
+
+export function daysUntilReview(w, now = Date.now()) {
+  if (isWordDueToday(w, now)) return 0;
+  const diff = startOfDay(w.nextReviewAt) - startOfDay(now);
+  return Math.max(1, Math.round(diff / 86400000));
+}
+
+export function canPostponePassageWords(words, now = Date.now()) {
+  if (!Array.isArray(words) || !words.length) return false;
+  if (words.some((w) => !isWordStudied(w))) return false;
+  return words.some((w) => isWordDueToday(w, now));
+}
+
+export function rescheduleBacklog(data, { days = 5, keepTodayPassages = 0, passageId = '' } = {}, now = Date.now()) {
+  const spanDays = Math.max(1, Math.min(30, Math.round(Number(days) || 1)));
+  const keepCount = Math.max(0, Math.round(Number(keepTodayPassages) || 0));
+  const baseDay = startOfDay(now);
+  if (passageId) {
+    const p = data.passageProgress[passageId];
+    if (!p) return { postponedPassages: 0, postponedWords: 0 };
+    const allWords = (p.wordIds || []).map((id) => data.vocabRecords[id]).filter(Boolean);
+    if (!canPostponePassageWords(allWords, now)) {
+      throw new Error('新圈词尚未背诵的文章不可顺延，请先完成首次背词或测试');
+    }
+    const dueWords = allWords.filter((w) => isWordStudied(w) && isWordDueToday(w, now));
+    const targetTime = baseDay + spanDays * 86400000;
+    for (const w of dueWords) {
+      w.nextReviewAt = targetTime;
+      w.updatedAt = now;
+    }
+    return { postponedPassages: dueWords.length > 0 ? 1 : 0, postponedWords: dueWords.length };
+  }
+  const duePassages = Object.values(data.passageProgress)
+    .filter((p) => p && !String(p.id).startsWith('suite-'))
+    .map((p) => {
+      const allWords = (p.wordIds || []).map((id) => data.vocabRecords[id]).filter(Boolean);
+      if (!canPostponePassageWords(allWords, now)) return null;
+      const dueWords = allWords.filter((w) => isWordStudied(w) && isWordDueToday(w, now));
+      const avgStage = dueWords.length
+        ? dueWords.reduce((sum, w) => sum + (w.repetitions || 0), 0) / dueWords.length
+        : 0;
+      return { p, dueWords, avgStage };
+    })
+    .filter((entry) => entry && entry.dueWords.length > 0)
+    .sort((a, b) => {
+      if (a.avgStage !== b.avgStage) return a.avgStage - b.avgStage;
+      return (b.p.practicedAt || 0) - (a.p.practicedAt || 0);
+    });
+  const toPostpone = duePassages.slice(keepCount);
+  let postponedWords = 0;
+  toPostpone.forEach((entry, idx) => {
+    const dayOffset = (idx % spanDays) + 1;
+    const targetTime = baseDay + dayOffset * 86400000;
+    for (const w of entry.dueWords) {
+      w.nextReviewAt = targetTime;
+      w.updatedAt = now;
+      postponedWords++;
+    }
+  });
+  return {
+    postponedPassages: toPostpone.length,
+    postponedWords,
+    keptPassages: Math.min(keepCount, duePassages.length)
+  };
+}
+
 export function schedule(record, correct, now = Date.now()) {
   record.updatedAt = now;
   record.lastStudiedAt = now;
@@ -86,16 +177,15 @@ export function schedule(record, correct, now = Date.now()) {
     record.repetitions = 0;
     record.proficiency = Math.max(0, record.proficiency - 1);
     record.ease = Math.max(1.3, record.ease - 0.2);
-    record.intervalDays = 0;
-    record.nextReviewAt = now + 10 * 60 * 1000;
+    record.intervalDays = 1;
+    record.nextReviewAt = now + 86400000;
     record.status = 'learning';
     return;
   }
   record.proficiency++;
   record.streak++;
   record.repetitions++;
-  record.intervalDays = record.repetitions === 1 ? 1 : record.repetitions === 2 ? 3 :
-    Math.max(4, Math.round(record.intervalDays * record.ease));
+  record.intervalDays = EBBINGHAUS_DAYS[Math.min(record.repetitions - 1, EBBINGHAUS_DAYS.length - 1)];
   record.nextReviewAt = now + record.intervalDays * 86400000;
   record.status = record.streak >= 2 ? 'mastered' : 'review';
 }
@@ -165,16 +255,26 @@ export function validateData(input) {
       !Array.isArray(input.processedEvents) || input.processedEvents.length > 1000 ||
       input.processedEvents.some((id) => !text(id, 300))) throw new Error('设置数据无效');
   const learning = input.learningSession;
-  if (learning !== null && (!object(learning) || !safeKey(learning.id) ||
-      !Object.hasOwn(input.passageProgress, learning.passageId) || !Array.isArray(learning.wordIds) ||
-      !learning.wordIds.length || learning.wordIds.some((id) => input.vocabRecords[id]?.passageId !== learning.passageId) ||
-      new Set(learning.wordIds).size !== learning.wordIds.length ||
-      !Number.isInteger(learning.index) || learning.index < 0 || learning.index > learning.wordIds.length ||
-      typeof learning.revealed !== 'boolean' || !number(learning.startedAt))) throw new Error('学习批次无效');
+  if (learning !== null) {
+    if (!object(learning) || !safeKey(learning.id) || !safeKey(learning.passageId) ||
+        !Object.hasOwn(input.passageProgress, learning.passageId) ||
+        (learning.passageIds !== undefined && (!Array.isArray(learning.passageIds) || !learning.passageIds.length ||
+          learning.passageIds.some((pid) => !safeKey(pid) || !Object.hasOwn(input.passageProgress, pid)))) ||
+        !Array.isArray(learning.wordIds) || !learning.wordIds.length) throw new Error('学习批次无效');
+    const allowedLearningPassages = Array.isArray(learning.passageIds) && learning.passageIds.length
+      ? new Set(learning.passageIds)
+      : new Set([learning.passageId]);
+    if (learning.wordIds.some((id) => !input.vocabRecords[id] || !allowedLearningPassages.has(input.vocabRecords[id].passageId)) ||
+        new Set(learning.wordIds).size !== learning.wordIds.length ||
+        !Number.isInteger(learning.index) || learning.index < 0 || learning.index > learning.wordIds.length ||
+        typeof learning.revealed !== 'boolean' || !number(learning.startedAt)) throw new Error('学习批次无效');
+  }
   const quiz = input.quizSession;
   if (quiz !== null) validateQuiz(quiz, input);
   for (const h of input.quizHistory) {
-    if (!object(h) || !safeKey(h.id) || !safeKey(h.passageId) || !Array.isArray(h.wordIds) ||
+    if (!object(h) || !safeKey(h.id) || !safeKey(h.passageId) ||
+        (h.passageIds !== undefined && (!Array.isArray(h.passageIds) || !h.passageIds.length || h.passageIds.some((pid) => !safeKey(pid)))) ||
+        !Array.isArray(h.wordIds) ||
         !h.wordIds.length || h.wordIds.some((id) => !safeKey(id, 341)) || !Array.isArray(h.wrongWordIds) ||
         h.wrongWordIds.some((id) => !h.wordIds.includes(id)) ||
         ['accuracy', 'attemptAccuracy', 'completedAt', 'attempts', 'firstCorrect'].some((key) => !number(h[key])) ||
@@ -190,7 +290,10 @@ export function validateData(input) {
 }
 
 function validateQuiz(q, data) {
-  if (!object(q) || !safeKey(q.id) || !safeKey(q.passageId) || !Array.isArray(q.words) || !q.words.length ||
+  if (!object(q) || !safeKey(q.id) || !safeKey(q.passageId) ||
+      (q.passageIds !== undefined && (!Array.isArray(q.passageIds) || !q.passageIds.length ||
+        q.passageIds.some((pid) => !safeKey(pid) || !Object.hasOwn(data.passageProgress, pid)))) ||
+      !Array.isArray(q.words) || !q.words.length ||
       !Array.isArray(q.queue) || !q.queue.length || !Array.isArray(q.answers) ||
       !Array.isArray(q.wrongWordIds) || !Number.isInteger(q.index) || q.index < 0 || q.index > q.queue.length ||
       typeof q.completed !== 'boolean' || q.completed !== (q.index === q.queue.length) ||
@@ -200,8 +303,11 @@ function validateQuiz(q, data) {
       !number(q.startedAt)) throw new Error('测试批次无效');
   if (q.words.some((w) => !object(w))) throw new Error('测试题池无效');
   const ids = new Set(q.words.map((w) => w.id));
-  if (ids.size !== q.words.length || q.words.some((w) => !object(w) || w.passageId !== q.passageId ||
-      data.vocabRecords[w.id]?.passageId !== q.passageId || !validWord(w.word) ||
+  const allowedPassages = Array.isArray(q.passageIds) && q.passageIds.length
+    ? new Set(q.passageIds)
+    : new Set([q.passageId]);
+  if (ids.size !== q.words.length || q.words.some((w) => !object(w) || !allowedPassages.has(w.passageId) ||
+      data.vocabRecords[w.id]?.passageId !== w.passageId || !validWord(w.word) ||
       !text(w.contextMeaning, 2000) || !chineseMeaning(w.contextMeaning) ||
       !Array.isArray(w.synonyms) || w.synonyms.some((s) => !text(s, 200)) ||
       !text(w.sentence, 10000) || !text(w.phonetic, 10000))) {
@@ -218,6 +324,7 @@ function validateQuiz(q, data) {
   }
   if (q.wrongWordIds.some((id) => !ids.has(id)) || q.answers.some((a) => !object(a) ||
       !ids.has(a.wordId) || typeof a.correct !== 'boolean' || !number(a.at) ||
+      (a.forgotten !== undefined && typeof a.forgotten !== 'boolean') ||
       (a.turn !== undefined && (!Number.isInteger(a.turn) || a.turn < 0)) ||
       !(a.selected === null || (Number.isInteger(a.selected) && a.selected >= 0 && a.selected < 4))) ||
       q.answers.length !== q.index + (q.feedback ? 1 : 0) ||
